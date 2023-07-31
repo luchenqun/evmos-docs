@@ -2,6 +2,137 @@
 sidebar_position: 1
 ---
 
+# 以太坊 JSON-RPC
+
+JSON-RPC 服务器提供了一个 API，允许您连接到 Evmos 区块链并与 EVM 进行交互。这使您可以直接访问以太坊格式的交易或将其发送到网络，而这在 Cosmos 链（如 Evmos）上是不可能的。
+
+[JSON-RPC](http://www.jsonrpc.org/specification) 是一种无状态、轻量级的远程过程调用（RPC）协议。它定义了几种数据结构及其处理规则。JSON-RPC 可以在多个传输方式上提供。Evmos 支持通过 HTTP 和 WebSocket 进行 JSON-RPC。传输方式必须通过命令行标志或 `app.toml` 配置文件启用。它使用 JSON（[RFC 4627](https://www.ietf.org/rfc/rfc4627.txt)）作为数据格式。
+
+有关以太坊 JSON-RPC 的更多信息：
+
+- [EthWiki JSON-RPC API](https://eth.wiki/json-rpc/API)
+- [Geth JSON-RPC Server](https://geth.ethereum.org/docs/interacting-with-geth/rpc)
+- [以太坊的 PubSub JSON-RPC API](https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub)
+
+:::note
+请访问我们的学院，了解有关我们的 [Geth JavaScript 控制台指南](https://academy.evmos.org/articles/advanced/geth-js-console) 的更多信息。
+:::
+
+## HTTP 上的 JSON-RPC
+
+Evmos 支持大多数标准的 web3 JSON-RPC API，以便通过 HTTP 连接到现有的与以太坊兼容的 web3 工具。以太坊 JSON-RPC API 使用命名空间系统。RPC 方法根据其用途分组到多个类别中。所有方法名称由命名空间、下划线和命名空间内的实际方法名称组成。例如，`eth_call` 方法位于 eth 命名空间中。可以按命名空间启用对 RPC 方法的访问。
+
+以下是 Evmos 支持的 JSON-RPC 命名空间，或者请访问 [JSON-RPC 方法](./methods.md) 页面上的文档，了解各个 API 端点及其相应的 curl 命令。
+
+| 命名空间                                           | 描述                                                                                                                                                                                                                      | 支持 | 默认启用 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --- | -------- |
+| [`eth`](./ethereum-json-rpc/methods#eth-methods)           | Evmos 提供了几个扩展到标准 `eth` JSON-RPC 命名空间的方法。                                                                                                                                                              | ✔  | ✔        |
+| [`web3`](./ethereum-json-rpc/methods#web3-methods)         | `web3` API 提供了用于 web3 客户端的实用函数。                                                                                                                                                                           | ✔  | ✔        |
+| [`net`](./ethereum-json-rpc/methods#net-methods)           | `net` API 提供了对节点的网络信息的访问。                                                                                                                                                                                 | ✔  | ✔        |
+| `clique`                                          | `clique` API 提供了对 clique 共识引擎状态的访问。您可以使用此 API 管理签名者投票并检查私有网络的健康状况。                                                                                                                  | 🚫  |           |
+| `debug`                                           | `debug` API 允许您访问几个非标准的 RPC 方法，这些方法允许您在运行时检查、调试和设置某些调试标志。                                                                                                                            | ✔  |           |
+| `les`                                             | `les` API 允许您管理 LES 服务器设置，包括优先客户端的客户端参数和支付设置。它还提供了在服务器和客户端模式下查询检查点信息的功能。                                                                                                 | 🚫  |           |
+| [`miner`](./ethereum-json-rpc/methods#miner-methods)       | `miner` API 允许您远程控制节点的挖矿操作并设置各种挖矿特定设置。                                                                                                                                                           | ✔  | 🚫        |
+| [`txpool`](./ethereum-json-rpc/methods#txpool-methods)     | `txpool` API 允许您访问几个非标准的 RPC 方法，以检查包含当前所有待处理事务以及排队等待未来处理的事务的事务池的内容。                                                                                                         | ✔  | 🚫        |
+| `admin`                                           | `admin` API 允许您访问几个非标准的 RPC 方法，这些方法允许您对节点实例进行细粒度的控制，包括但不限于网络对等方和 RPC 端点管理。                                                                                                 | 🚫  |           |
+| [`personal`](./ethereum-json-rpc/methods#personal-methods) | `personal` API 管理密钥库中的私钥。                                                                                                                                                                                    | ✔  | 🚫        |
+
+## 订阅以太坊事件
+
+### 过滤器
+
+Evmos还支持以太坊的[JSON-RPC](./ethereum-json-rpc/methods)过滤器调用，用于订阅[状态日志](https://eth.wiki/json-rpc/API#eth_newfilter)、[区块](https://eth.wiki/json-rpc/API#eth_newblockfilter)或[待处理交易](https://eth.wiki/json-rpc/API#eth_newpendingtransactionfilter)的变化。
+
+在底层，它使用Tendermint RPC客户端的事件系统来处理订阅，然后将其格式化为与以太坊兼容的事件。
+
+```bash
+curl -X POST --data '{"jsonrpc":"2.0","method":"eth_newBlockFilter","params":[],"id":1}' -H "Content-Type: application/json" http://localhost:8545
+
+{"jsonrpc":"2.0","id":1,"result":"0x3503de5f0c766c68f78a03a3b05036a5"}
+```
+
+然后，您可以使用[`eth_getFilterChanges`](https://eth.wiki/json-rpc/API#eth_getfilterchanges)调用来检查状态的变化：
+
+```bash
+curl -X POST --data '{"jsonrpc":"2.0","method":"eth_getFilterChanges","params":["0x3503de5f0c766c68f78a03a3b05036a5"],"id":1}' -H "Content-Type: application/json" http://localhost:8545
+
+{"jsonrpc":"2.0","id":1,"result":["0x7d44dceff05d5963b5bc81df7e9f79b27e777b0a03a6feca09f3447b99c6fa71","0x3961e4050c27ce0145d375255b3cb829a5b4e795ac475c05a219b3733723d376","0xd7a497f95167d63e6feca70f344d9f6e843d097b62729b8f43bdcd5febf142ab","0x55d80a4ba6ef54f2a8c0b99589d017b810ed13a1fda6a111e1b87725bc8ceb0e","0x9e8b92c17280dd05f2562af6eea3285181c562ebf41fc758527d4c30364bcbc4","0x7353a4b9d6b35c9eafeccaf9722dd293c46ae2ffd4093b2367165c3620a0c7c9","0x026d91bda61c8789c59632c349b38fd7e7557e6b598b94879654a644cfa75f30","0x73e3245d4ddc3bba48fa67633f9993c6e11728a36401fa1206437f8be94ef1d3"]}
+```
+
+### 以太坊 Websocket
+
+以太坊 Websocket 允许您订阅以太坊日志和智能合约中发出的事件。这样，当您需要特定信息时，您就不需要不断地发出请求。
+
+由于 Evmos 是使用 Cosmos SDK 框架构建的，并使用 Tendermint Core 作为其共识引擎，它继承了它们的[event format](./tendermint-rpc#subscribing-to-cosmos-and-tendermint-events)。然而，为了支持[Ethereum 的 PubSubAPI](https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub)的本机 Web3 兼容性，Evmos 需要将检索到的 Tendermint 响应转换为以太坊类型。
+
+您可以在启动节点时使用 `--json-rpc.ws-address` 标志与以太坊 Websocket 建立连接（默认为 `"0.0.0.0:8546"`）：
+
+```bash
+evmosd start --json-rpc.address="0.0.0.0:8545" --json-rpc.ws-address="0.0.0.0:8546" --json-rpc.api="eth,web3,net,txpool,debug" --json-rpc.enable
+```
+
+然后，使用 [`ws`](https://github.com/hashrocket/ws) 开始一个 Websocket 订阅：
+
+```bash
+# connect to tendermint websocket at port 8546 as defined above
+ws ws://localhost:8546/
+
+# subscribe to new Ethereum-formatted block Headers
+> {"id": 1, "method": "eth_subscribe", "params": ["newHeads", {}]}
+< {"jsonrpc":"2.0","result":"0x44e010cb2c3161e9c02207ff172166ef","id":1}
+```
+
+## 进一步考虑
+
+### HEX 值编码
+
+目前，有两种关键数据类型通过 JSON 传递：
+
+* **数量**和
+* **未格式化的字节数组**。
+
+两者都使用十六进制编码，但格式要求不同。
+
+当编码数量（整数、数字）时，请使用十六进制编码，前缀为`"0x"`，使用最紧凑的表示形式（稍有例外：零应表示为`"0x0"`）。示例：
+
+- `0x41`（十进制为65）
+- `0x400`（十进制为1024）
+- 错误：`0x`（应始终至少有一位数字 - 零为`"0x0"`）
+- 错误：`0x0400`（不允许前导零）
+- 错误：`ff`（必须加前缀`0x`）
+
+当编码未格式化的数据（字节数组、账户地址、哈希、字节码数组）时，请使用十六进制编码，前缀为`"0x"`，每个字节两个十六进制数字。示例：
+
+- `0x41`（大小为1，`"A"`）
+- `0x004200`（大小为3，`"\0B\0"`）
+- `0x`（大小为0，`""`）
+- 错误：`0xf0f0f`（必须为偶数位数字）
+- 错误：`004200`（必须加前缀`0x`）
+
+### 默认块参数
+
+以下方法有一个额外的默认块参数：
+
+- [`eth_getBalance`](./ethereum-json-rpc/methods#eth_getbalance)
+- [`eth_getCode`](./ethereum-json-rpc/methods#eth_getcode)
+- [`eth_getTransactionCount`](./ethereum-json-rpc/methods#eth_gettransactioncount)
+- [`eth_getStorageAt`](./ethereum-json-rpc/methods#eth_getstorageat)
+- [`eth_call`](./ethereum-json-rpc/methods#eth_call)
+
+当发出对 Evmos 状态进行操作的请求时，最后一个默认块参数确定块的高度。
+
+`defaultBlock` 参数可以有以下选项：
+
+- `HEX 字符串` - 整数块号
+- 字符串 `"earliest"` 表示最早/创世块
+- 字符串 `"latest"` - 表示最新的已挖掘块
+- 字符串 `"pending"` - 表示待处理状态/交易
+
+
+---
+sidebar_position: 1
+---
+
 # Ethereum JSON-RPC
 
 The JSON-PRC Server provides an API that allows you to connect to the Evmos blockchain and interact with the EVM. This

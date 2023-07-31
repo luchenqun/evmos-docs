@@ -1,5 +1,227 @@
 # `epochs`
 
+## 摘要
+
+本文档规定了 Evmos Hub 的内部 `x/epochs` 模块。
+
+在使用 [Cosmos SDK](https://github.com/cosmos/cosmos-sdk) 时，我们经常希望定期运行某些代码。
+
+`epochs` 模块的目的是允许其他模块维护它们希望在一段时间内被通知的需求。
+因此，另一个模块可以指定它希望在每周的特定时间（UTC 时间 = x）执行某些代码。
+`epochs` 创建了一个通用的时代接口，以便其他模块可以更容易地在此类事件发生时被通知。
+
+## 目录
+
+1. **[概念](#概念)**
+2. **[状态](#状态)**
+3. **[事件](#事件)**
+4. **[Keeper](#Keeper)**
+5. **[Hooks](#Hooks)**
+6. **[查询](#查询)**
+7. **[未来改进](#未来改进)**
+
+## 概念
+
+`epochs` 模块定义了在固定时间间隔内执行的链上定时器。
+其他 Evmos 模块可以注册逻辑以在定时器滴答时执行。
+我们将两个定时器滴答之间的时间段称为“时代”。
+
+每个定时器都有一个唯一的标识符，每个时代都有一个开始时间和结束时间，
+其中 `结束时间 = 开始时间 + 定时器间隔`。
+
+## 状态
+
+### 状态对象
+
+`x/epochs` 模块在状态中保留以下对象：
+
+| 状态对象     | 描述               | 键                   | 值                  | 存储  |
+|--------------|--------------------|----------------------|---------------------|-------|
+| `EpochInfo`  | 时代信息字节码     | `[]byte{identifier}`  | `[]byte{epochInfo}` | KV    |
+
+#### EpochInfo
+
+`EpochInfo` 定义了几个变量：
+
+1. `identifier` 保留了一个时代标识字符串
+2. `start_time` 保留了时代计数的开始时间：
+   如果块高度超过 `start_time`，则设置 `epoch_counting_started`
+3. `duration` 保留了目标时代持续时间
+4. `current_epoch` 保留了当前活动时代的编号
+5. `current_epoch_start_time` 保留了当前时代的开始时间
+6. `epoch_counting_started` 是一个标志，与 `start_time` 一起设置，在此时 `epoch_number` 将被计数
+7. `current_epoch_start_height` 保留了当前时代的开始块高度
+
+```protobuf
+message EpochInfo {
+    string identifier = 1;
+    google.protobuf.Timestamp start_time = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.moretags) = "yaml:\"start_time\""
+    ];
+    google.protobuf.Duration duration = 3 [
+        (gogoproto.nullable) = false,
+        (gogoproto.stdduration) = true,
+        (gogoproto.jsontag) = "duration,omitempty",
+        (gogoproto.moretags) = "yaml:\"duration\""
+    ];
+    int64 current_epoch = 4;
+    google.protobuf.Timestamp current_epoch_start_time = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.moretags) = "yaml:\"current_epoch_start_time\""
+    ];
+    bool epoch_counting_started = 6;
+    reserved 7;
+    int64 current_epoch_start_height = 8;
+}
+```
+
+`epochs` 模块将这些 `EpochInfo` 对象保存在状态中，它们在创世时被初始化，并在开始块或结束块时进行修改。
+
+#### 创世状态
+
+`x/epochs` 模块的 `GenesisState` 定义了初始化链所需的状态，该状态是从先前导出的高度开始的。
+它包含一个包含所有保存在状态中的 `EpochInfo` 对象的切片：
+
+```go
+// Genesis State defines the epoch module's genesis state
+type GenesisState struct {
+    // list of EpochInfo structs corresponding to all epochs
+	Epochs []EpochInfo `protobuf:"bytes,1,rep,name=epochs,proto3" json:"epochs"`
+}
+```
+
+## 事件
+
+`x/epochs` 模块会发出以下事件：
+
+### BeginBlocker
+
+| 类型          | 属性键            | 属性值            |
+| ------------- | ----------------- | ----------------- |
+| `epoch_start` | `"epoch_number"`  | `{epoch_number}`  |
+| `epoch_start` | `"start_time"`    | `{start_time}`    |
+
+### EndBlocker
+
+| 类型           | 属性键           | 属性值            |
+| ------------- | ----------------- | ----------------- |
+| `epoch_end`   | `"epoch_number"`  | `{epoch_number}`  |
+
+## Keepers
+
+`x/epochs` 模块只公开了一个 keeper，即 epochs keeper，可用于管理 epochs。
+
+### Epochs Keeper
+
+目前只公开了一个完全授权的 epochs keeper，
+它具有读取和写入所有 epochs 的 `EpochInfo` 的能力，
+并且可以迭代所有存储的 epochs。
+
+```go
+// Keeper of epoch nodule maintains collections of epochs and hooks.
+type Keeper struct {
+	cdc      codec.Codec
+	storeKey storetypes.StoreKey
+	hooks    types.EpochHooks
+}
+```
+
+```go
+// Keeper is the interface for epoch module keeper
+type Keeper interface {
+  // GetEpochInfo returns epoch info by identifier
+  GetEpochInfo(ctx sdk.Context, identifier string) types.EpochInfo
+
+  // SetEpochInfo set epoch info
+  SetEpochInfo(ctx sdk.Context, epoch types.EpochInfo)
+
+  // DeleteEpochInfo delete epoch info
+  DeleteEpochInfo(ctx sdk.Context, identifier string)
+
+  // IterateEpochInfo iterate through epochs
+  IterateEpochInfo(ctx sdk.Context, fn func(index int64, epochInfo types.EpochInfo) (stop bool))
+
+  // Get all epoch infos
+  AllEpochInfos(ctx sdk.Context) []types.EpochInfo
+}
+```
+
+## 钩子
+
+`x/epochs` 模块实现了钩子，以便其他模块可以使用 epochs
+以特定的计划运行 [Cosmos SDK](https://github.com/cosmos/cosmos-sdk) 的各个方面。
+
+### 钩子实现
+
+```go
+// combine multiple epoch hooks, all hook functions are run in array sequence
+type MultiEpochHooks []types.EpochHooks
+
+// AfterEpochEnd is called when epoch is going to be ended, epochNumber is the
+// number of epoch that is ending
+func (mh MultiEpochHooks) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumber int64) {...}
+
+// BeforeEpochStart is called when epoch is going to be started, epochNumber is
+// the number of epoch that is starting
+func (mh MultiEpochHooks) BeforeEpochStart(ctx sdk.Context, epochIdentifier string, epochNumber int64) {...}
+
+// AfterEpochEnd executes the indicated hook after epochs ends
+func (k Keeper) AfterEpochEnd(ctx sdk.Context, identifier string, epochNumber int64) {...}
+
+// BeforeEpochStart executes the indicated hook before the epochs
+func (k Keeper) BeforeEpochStart(ctx sdk.Context, identifier string, epochNumber int64) {...}
+```
+
+### 接收钩子
+
+当其他模块（`x/epochs` 之外的模块）接收到钩子时，
+它们需要过滤值 `epochIdentifier`，并仅对特定的 `epochIdentifier` 执行操作。
+
+从 `epochIdentifier` 中过滤出的值可以存储在其他模块的 `Params` 中，
+因此它们可以由治理进行修改。
+
+治理可以根据需要将 epoch 周期从 `week` 更改为 `day`。
+
+## 查询
+
+`x/epochs` 模块提供以下查询来检查模块的状态。
+
+```protobuf
+service Query {
+  // EpochInfos provide running epochInfos
+  rpc EpochInfos(QueryEpochsInfoRequest) returns (QueryEpochsInfoResponse) {}
+  // CurrentEpoch provide current epoch of specified identifier
+  rpc CurrentEpoch(QueryCurrentEpochRequest) returns (QueryCurrentEpochResponse) {}
+}
+```
+
+## 未来改进
+
+### 正确使用
+
+在当前设计中，每个时代至少应包含两个区块，因为起始区块应与结束区块不同。
+因此，每个时代分配的时间将为 `max(block_time x 2, epoch_duration)`。
+例如：如果将 `epoch_duration` 设置为 `1s`，`block_time` 设置为 `5s`，则实际时代时间应为 `10s`。
+
+建议将 `epoch_duration` 配置为超过 `block_time` 两倍以上，以正确使用此模块。
+如果 `epoch_duration` 与实际时代时间不匹配，如上述示例中，
+则模块逻辑可能会变得无效。
+
+### 区块时间漂移
+
+`x/epochs` 模块的实现基于 `block_time` 值具有区块时间漂移。
+例如：如果我们有一个以 `t=100` 结束的时代，时代长度为 100 个单位，
+并且在 `t=97`、`t=104` 和 `t=110` 有一个区块，那么该时代将在 `t=104` 结束，
+新的时代将从 `t=110` 开始。
+
+这里存在时间漂移，大约相差 1-2 个区块时间，这将减慢时代的进程。
+
+
+# `epochs`
+
 ## Abstract
 
 This document specifies the internal `x/epochs` module of the Evmos Hub.

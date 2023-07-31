@@ -4,31 +4,147 @@ sidebar_position: 2
 
 # Keplr
 
+连接您的 Keplr 钱包与 Evmos。
+
+- [安装 Keplr](https://www.keplr.app/)
+
+![keplr-homepage.png](/img/keplr-homepage.png)
+
+:::tip **注意**：Keplr 扩展仅在基于 Chromium 的浏览器（如 Edge、Chrome 和 Brave）和 Firefox 上得到官方支持。 :::
+
+import ProjectValue from "@site/src/components/ProjectValue.js";
+
+[Keplr](https://www.keplr.app/) 浏览器扩展是用于访问 Cosmos 生态系统中的应用程序和管理用户身份的钱包。它可以用于连接到 <ProjectValue keyword="name" /> 的主网和测试网，并领取奖励、发送和质押代币、参与治理等操作。
+
+## 设置 Keplr
+
+:::tip **注意**：有关设置 Keplr 过程的更多信息，请参阅官方的 [Keplr 文档](https://keplr.crunch.help/getting-started) 或此 [Medium 文章](https://medium.com/chainapsis/how-to-use-keplr-wallet-40afc80907f6)。 :::
+
+在浏览器上打开 Keplr 扩展。如果您是第一次设置 Keplr，您可以选择 [创建新账户](#create-a-new-account) 或 [导入现有账户](#import-an-existing-account)。
+
+### 创建新账户
+
+有几种方法可以创建新账户：
+
+- 通过 [助记词/种子短语](#create-an-account-with-a-seed-phrase)
+- 通过 [一键登录](#create-an-account-with-one-click-login)
+
+#### 使用种子短语创建账户
+
+![keplr-create-new.png](/img/keplr-create-new.png)
+
+1. 在初始弹出窗口中，选择 **创建新账户**
+
+- 如果您之前使用过 Keplr，请点击右上角的人像图标，然后点击标有 **添加账户** 的蓝色方框，选择 **创建新账户**
+
+2. 选择拥有一个由 24 个单词组成的种子短语，并保存该短语
+
+- 您可以通过点击 **高级** 来更改派生路径，但这是可选的（在 [Keplr FAQ](https://faq.keplr.app/) 中了解更多）
+
+3. 为您的账户输入一个名称（稍后可以更改）
+4. 一旦您将 24 个单词的种子短语抄写下来，点击 **下一步**
+5. 为了确认创建新账户，请按照您的种子短语中单词出现的顺序点击右侧的单词，并点击 **注册**
+6. 如果您之前没有使用过 Keplr，请为 Keplr 扩展设置一个**强密码**，然后点击 **确认**
+
+#### 一键创建帐户（Google OAuth）登录
+
+:::tip **注意**：建议通过助记词短语或使用 Ledger 创建帐户，而不是使用“使用 Google 登录”选项。 :::
+
+1. 选择**使用 Google 登录**选项
+2. 现在输入与您的 Google 帐户关联的电子邮件/电话号码、密码，然后点击**下一步**
+3. 如果您之前没有使用 Keplr，请为 Keplr 扩展设置一个**强大的**密码，然后点击**确认**
+
+### 导入现有帐户
+
+有几种方法可以导入现有帐户：
+
+- 通过[助记词/种子短语/私钥](#使用种子短语导入帐户)
+- 通过[Ledger](#使用Ledger导入帐户)
+
+#### 使用种子短语导入帐户
+
+1. 在初始弹出窗口中，选择**导入现有帐户**
+
+- 如果您之前使用过 Keplr，请点击右上角的轮廓图标，然后点击标有**添加帐户**的蓝色方框，选择**导入现有帐户** ![keplr-import-existing.png](/img/keplr-import-existing.png) ![keplr-seed-phrase.png](/img/keplr-seed-phrase.png)
+
+2. 在适当的位置输入您的助记词/种子短语/私钥，用空格分隔单词，并确保拼写正确
+3. 确保使用正确的派生路径导入帐户，可以通过点击**高级**查看
+
+- 通常，派生路径应为`m/44'/…’/0/0/0`，但如果您发现通过 Keplr 使用助记词导入的 Cosmos Mainnet 地址与您的地址不同，可能是派生路径以 1（或其他数字）而不是 0 结尾
+- 如果是这种情况，您只需重新开始该过程，并将最后一个 0 替换为 1
+- 在[Keplr 常见问题解答](https://faq.keplr.app/)中了解更多信息
+
+4. 如果您之前没有使用 Keplr，请为 Keplr 扩展设置一个**强大的**密码，然后点击**确认**
+
+#### 使用 Ledger 导入帐户
+
+![kepler-import-ledger.png](/img/kepler-import-ledger.png)
+
+1. 在初始弹出窗口中，选择**导入 Ledger**
+
+- 如果您之前使用过 Keplr，请点击右上角的轮廓图标，然后点击标有**添加帐户**的蓝色方框，选择**导入 Ledger**
+- 确保您的 Ledger 设备上已下载了 Cosmos 和 Ethereum Ledger 应用程序
+
+2. 要完成与您的 Ledger 设备的连接，请按照弹出窗口中描述的步骤进行操作（可以在此处找到详细的教程[链接](https://medium.com/chainapsis/how-to-use-ledger-nano-hardware-wallet-with-keplr-9ea7f07826c2)）或者从[验证者](https://medium.com/coinmonks/how-to-set-up-ledger-wallet-evmos-using-keplr-c438cf8c5321)的另一篇文章中查找。
+3. 如果您以前没有使用过 Keplr，请为 Keplr 扩展设置一个**强大的**密码，并点击**确认**。
+4. 在 Ledger 上切换到 Ethereum 应用程序，然后从 Keplr 链注册表中选择“Evmos”以连接公钥。
+
+- 所有来自 Keplr 的签名将使用 Ledger Ethereum 应用程序，可以是[EIP-712 交易](https://eips.ethereum.org/EIPS/eip-712)或标准的[Ethereum 交易](https://ethereum.org/en/developers/docs/transactions/)。
+
+## 在 Keplr 钱包上更改 RPC/REST
+
+有时钱包连接的 RPC 或 REST 无法正常工作，需要进行更新。请查看[networks list](../../develop/api/networks)以获取要使用的端点。按照以下步骤更改配置：
+
+1. 点击 Keplr 钱包扩展程序。
+2. 转到“设置”并进入“Endpoints”。
+3. 确保您在下拉菜单中选择的是“Evmos Testnet”网络。测试网络可能在列表底部。
+4. 更新“RPC”或“Rest”或两者的输入，并点击“确认”。
+
+## 连接 Keplr 到主网
+
+一旦您登录到 Keplr 扩展程序，您可以将钱包与 Evmos 网络连接起来。Evmos 主网网络已经内置在 Keplr 中，通过点击扩展程序并滚动选择网络来查找“Evmos”网络。
+
+## 连接到 Evmos 测试网
+
+![keplr-testnet-evmos.png](/img/keplr-testnet-evmos.png)
+
+Keplr 的默认网络配置是主网。要连接到测试网环境，您需要前往具有测试网配置的网站/项目。一个窗口将请求您批准该链和“chain-id”。一旦批准，测试网将在 Keplr 钱包的“Beta Support”部分中可选。
+
+```markdown
+import { chainConfig, handler } from '@site/src/utils/ChainConfig';
+
+:::tip 将 Evmos Testnet 添加到 Keplr。
+
+<button onClick={() => handler()} className="bg-red mt-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded"> 添加配置到 Keplr </button> :::
+
+## 注册跨链命名服务（ICNS）
+
+:::note ICNS 不同于 ENS（以太坊命名服务）。ICNS 专属于 Cosmos 链，而 ENS 专属于任何基于 EVM 的链。由于 Evmos 支持 EVM 和 Cosmos-based 操作，因此同时支持 ENS 和 ICNS。用户可以同时拥有 ICNS 和 ENS，但请注意 Cosmos 钱包支持 ICNS，而 EVM 钱包支持 ENS。 :::
+
+跨链命名服务是一个可选服务，允许用户使用易于记忆的名称而不是地址，并且许多跨链网络都支持它。要了解有关 ICNS 的更多信息，请访问[此处](https://medium.com/@icns/announcing-icns-the-interchain-name-service-e61e0c3e2abb)。如果您准备好继续，您将需要 Twitter、`0.5 OSMO` 和已登录的 Keplr 钱包。如果您需要获取 `OSMO` 代币，请查看[此链接](https://app.osmosis.zone/?from=USDC&to=OSMO)。ICNS 注册链接在[这里](https://app.icns.xyz/)。
+```
+
+---
+
+## sidebar_position: 2
+
+# Keplr
+
 Connect your Keplr wallet with Evmos.
 
 - [Install Keplr](https://www.keplr.app/)
 
 ![keplr-homepage.png](/img/keplr-homepage.png)
 
-:::tip
-**Note**: The Keplr extension is officially supported on Chromium-based browsers (i.e. Edge, Chrome, and Brave) and Firefox.
-:::
+:::tip **Note**: The Keplr extension is officially supported on Chromium-based browsers (i.e. Edge, Chrome, and Brave) and Firefox. :::
 
-import ProjectValue from '@site/src/components/ProjectValue.js';
-
-The [Keplr](https://www.keplr.app/) browser extension is a wallet for accessing applications in the Cosmos ecosystem and
-managing user identities. It can be used to connect to <ProjectValue keyword="name" /> mainnet and testnet and claim
-rewards, send and stake tokens, interact with governance, and more.
+The [Keplr](https://www.keplr.app/) browser extension is a wallet for accessing applications in the Cosmos ecosystem and managing user identities. It can be used to connect to <ProjectValue keyword="name" /> mainnet and testnet and claim rewards, send and stake tokens, interact with governance, and more.
 
 ## Set Up Keplr
 
-:::tip
-**Note**: Further information about the process of setting up Keplr can be found in the official
-[Keplr Documentation](https://keplr.crunch.help/getting-started) or in this [Medium article](https://medium.com/chainapsis/how-to-use-keplr-wallet-40afc80907f6).
-:::
+:::tip **Note**: Further information about the process of setting up Keplr can be found in the official [Keplr Documentation](https://keplr.crunch.help/getting-started) or in this [Medium article](https://medium.com/chainapsis/how-to-use-keplr-wallet-40afc80907f6). :::
 
-Open the Keplr extension on your browser. If you are setting up Keplr for the first time, you can either
-[create a new account](#create-a-new-account) or [import an existing account](#import-an-existing-account).
+Open the Keplr extension on your browser. If you are setting up Keplr for the first time, you can either [create a new account](#create-a-new-account) or [import an existing account](#import-an-existing-account).
 
 ### Create a New Account
 
@@ -43,25 +159,20 @@ There are several ways to create a new account:
 
 1. In the initial pop-up window, choose **Create New Account**
 
-- If you have used Keplr before, click on the silhouette in the upper-right corner, then the blue box labeled
-**Add Account**, and select **Create New Account**
+- If you have used Keplr before, click on the silhouette in the upper-right corner, then the blue box labeled **Add Account**, and select **Create New Account**
 
 2. Choose to have a seed/mnemonic phrase of 24 words, and save the phrase
 
-- You can change the derivation path by clicking on **Advanced**, but this is optional (learn more in the
-[Keplr FAQ](https://faq.keplr.app/))
+- You can change the derivation path by clicking on **Advanced**, but this is optional (learn more in the [Keplr FAQ](https://faq.keplr.app/))
 
 3. Enter a name for your account (can change later)
 4. Once you have transcribed your 24 word seed/mnemonic phrase, click on **Next**
-5. To confirm the creation of the new account, click on the words on the right order in which they appear in your
-seed/mnemonic phrase, and press **Register**
+5. To confirm the creation of the new account, click on the words on the right order in which they appear in your seed/mnemonic phrase, and press **Register**
 6. If you have not used Keplr before, set a **strong** password for the Keplr extension, and click **Confirm**
 
 #### Create an Account with One-Click (Google OAuth) Login
 
-:::tip
-**Note**: It is suggested to create an account via mnemonic phrase or utilize a Ledger and not use the `Sign in with Google`.
-:::
+:::tip **Note**: It is suggested to create an account via mnemonic phrase or utilize a Ledger and not use the `Sign in with Google`. :::
 
 1. Choose the option **Sign in with Google**
 2. Now enter the email/phone number associated with your Google account, the password, and click **Next**
@@ -78,18 +189,12 @@ There are several ways to import an existing account:
 
 1. In the initial pop-up window, choose **Import Existing Account**
 
-- If you have used Keplr before, click on the silhouette in the upper-right corner, then the blue box labeled
-**Add Account**, and select **Import Existing Account**
-![keplr-import-existing.png](/img/keplr-import-existing.png)
-![keplr-seed-phrase.png](/img/keplr-seed-phrase.png)
+- If you have used Keplr before, click on the silhouette in the upper-right corner, then the blue box labeled **Add Account**, and select **Import Existing Account** ![keplr-import-existing.png](/img/keplr-import-existing.png) ![keplr-seed-phrase.png](/img/keplr-seed-phrase.png)
 
-2. Enter your mnemonic/seed phrase/private key in the appropriate slot, separating the words with spaces and taking
-care to check they are spelled correctly
+2. Enter your mnemonic/seed phrase/private key in the appropriate slot, separating the words with spaces and taking care to check they are spelled correctly
 3. Make sure you have imported the account with the correct derivation path, viewable by clicking on **Advanced**
 
-- Normally, the derivation path should be `m/44'/…’/0/0/0`, but if you see that importing the account via
-mnemonic on Keplr, the Cosmos Mainnet address displayed is different than yours, it is possible the derivation
-    path ends with 1 (or another number) instead of 0
+- Normally, the derivation path should be `m/44'/…’/0/0/0`, but if you see that importing the account via mnemonic on Keplr, the Cosmos Mainnet address displayed is different than yours, it is possible the derivation path ends with 1 (or another number) instead of 0
 - If this is the case, you just have to start the process over, and replace the last 0 with 1
 - Learn more in the [Keplr FAQ](https://faq.keplr.app/)
 
@@ -101,47 +206,37 @@ mnemonic on Keplr, the Cosmos Mainnet address displayed is different than yours,
 
 1. In the initial pop-up window, choose **Import Ledger**
 
-- If you have used Keplr before, click on the silhouette in the upper-right corner, then the blue box labeled
-**Add Account**, and select **Import Ledger**
+- If you have used Keplr before, click on the silhouette in the upper-right corner, then the blue box labeled **Add Account**, and select **Import Ledger**
 - Be sure you have both the Cosmos and Ethereum Ledger apps downloaded on your Ledger device
 
-2. To complete the connection with your Ledger device, follow the steps described in the pop-up that appears (a detailed
-tutorial can be found [here](https://medium.com/chainapsis/how-to-use-ledger-nano-hardware-wallet-with-keplr-9ea7f07826c2))
-or another article from a [validator](https://medium.com/coinmonks/how-to-set-up-ledger-wallet-evmos-using-keplr-c438cf8c5321).
+2. To complete the connection with your Ledger device, follow the steps described in the pop-up that appears (a detailed tutorial can be found [here](https://medium.com/chainapsis/how-to-use-ledger-nano-hardware-wallet-with-keplr-9ea7f07826c2)) or another article from a [validator](https://medium.com/coinmonks/how-to-set-up-ledger-wallet-evmos-using-keplr-c438cf8c5321).
 3. If you have not used Keplr before, set a **strong** password for the Keplr extension, and click **Confirm**
 4. Switch to the Ethereum app on the Ledger, then select “Evmos” from the Keplr chain registry to connect the public key
 
-- All signing from Keplr will use the Ledger Ethereum app, with either [EIP-712 transactions](https://eips.ethereum.org/EIPS/eip-712)
-or standard [Ethereum transactions](https://ethereum.org/en/developers/docs/transactions/).
+- All signing from Keplr will use the Ledger Ethereum app, with either [EIP-712 transactions](https://eips.ethereum.org/EIPS/eip-712) or standard [Ethereum transactions](https://ethereum.org/en/developers/docs/transactions/).
 
 ## Changing RPC/REST on Keplr Wallet
 
-There are times when the wallet's connected RPC or REST is not working and requires an update. Check the
-[networks list](../../develop/api/networks) for endpoints to use. To change the configuration, follow these steps:
+There are times when the wallet's connected RPC or REST is not working and requires an update. Check the [networks list](../../develop/api/networks) for endpoints to use. To change the configuration, follow these steps:
 
 1. Click on the Keplr Wallet Extension
 2. Go to `Settings` and go to `Endpoints`
-3. Make sure you are on the `Evmos Testnet` network from the dropdown. Testnet networks will likely be towards the bottom
-of the list.
+3. Make sure you are on the `Evmos Testnet` network from the dropdown. Testnet networks will likely be towards the bottom of the list.
 4. Update either the `RPC` or `Rest` or both inputs and click `Confirm`
 
 ## Connect Keplr to Mainnet
 
-Once you are signed in to the Keplr extension, you can connect the wallet with the Evmos network. The Evmos mainnet network
-is already built into Keplr and look for the `Evmos` network by clicking on the extension and scrolling to select the network.
+Once you are signed in to the Keplr extension, you can connect the wallet with the Evmos network. The Evmos mainnet network is already built into Keplr and look for the `Evmos` network by clicking on the extension and scrolling to select the network.
 
 ## Connect to Evmos Testnet
 
 ![keplr-testnet-evmos.png](/img/keplr-testnet-evmos.png)
 
-The default network configurations for Keplr comes with mainnet as its default. To connect to the testnet environment,
-you will need to head to a site/project that has testnet configuration. A window will request your approval for the chain
-and the `chain-id`. Once approved, the testnet will be selectable under the `Beta Support` section of Keplr Wallet.
+The default network configurations for Keplr comes with mainnet as its default. To connect to the testnet environment, you will need to head to a site/project that has testnet configuration. A window will request your approval for the chain and the `chain-id`. Once approved, the testnet will be selectable under the `Beta Support` section of Keplr Wallet.
 
-import { chainConfig, handler } from '@site/src/utils/ChainConfig';
+import { chainConfig, handler } from "@site/src/utils/ChainConfig";
 
-:::tip
-Add Evmos Testnet to Keplr.
+:::tip Add Evmos Testnet to Keplr.
 
 <button onClick={() => handler()} className="bg-red mt-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
   Add Configuration to Keplr
@@ -150,13 +245,6 @@ Add Evmos Testnet to Keplr.
 
 ## Register Interchain Nameservice (ICNS)
 
-:::note
-ICNS is not the same as ENS (Ethereum Name Service). ICNS is exclusive to Cosmos chain and ENS is exclusive to any
-EVM-based chains. Since Evmos supports EVM and Cosmos-based actions, both ENS and ICNS are supported. Users can have
-both ICNS and ENS but be advised that Cosmos-wallets support ICNS while EVM-wallets support ENS.
-:::
+:::note ICNS is not the same as ENS (Ethereum Name Service). ICNS is exclusive to Cosmos chain and ENS is exclusive to any EVM-based chains. Since Evmos supports EVM and Cosmos-based actions, both ENS and ICNS are supported. Users can have both ICNS and ENS but be advised that Cosmos-wallets support ICNS while EVM-wallets support ENS. :::
 
-The Interchain Nameservice is an optional service that allows users to use easy-to-remember names instead of addresses
-and many interchain networks support it. To learn more about ICNS, head over to [here](https://medium.com/@icns/announcing-icns-the-interchain-name-service-e61e0c3e2abb) to learn more. If you are ready to proceed, you will need
-Twitter, `0.5 OSMO` and signed in Keplr Wallet. If you need to obtain `OSMO` token, check out
-[this link](https://app.osmosis.zone/?from=USDC&to=OSMO). ICNS registration link is [here](https://app.icns.xyz/).
+The Interchain Nameservice is an optional service that allows users to use easy-to-remember names instead of addresses and many interchain networks support it. To learn more about ICNS, head over to [here](https://medium.com/@icns/announcing-icns-the-interchain-name-service-e61e0c3e2abb) to learn more. If you are ready to proceed, you will need Twitter, `0.5 OSMO` and signed in Keplr Wallet. If you need to obtain `OSMO` token, check out [this link](https://app.osmosis.zone/?from=USDC&to=OSMO). ICNS registration link is [here](https://app.icns.xyz/).

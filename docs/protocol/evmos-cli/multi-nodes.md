@@ -2,6 +2,208 @@
 sidebar_position: 4
 ---
 
+# 多节点
+
+按照本页面的说明，您可以使用Docker运行一个由4个本地链节点组成的本地网络设置。
+这个设置对于开发人员在多节点环境中测试他们的应用程序和协议功能非常有用。
+
+Evmos团队也使用类似的设置来了解新功能的影响，并测试不同的用户流程。
+这个测试设置可以在[Evmos测试存储库](https://github.com/evmos/testing)中找到。
+
+### 构建和启动
+
+要使用[docker](https://docs.docker.com/engine/installation/)构建一个由4个节点组成的测试网络，请运行以下命令：
+
+```bash
+make localnet-start
+```
+
+该命令使用`evmosdnode` Docker镜像创建一个由4个节点组成的网络。
+每个节点的端口在下表中列出：
+
+| 节点ID       | P2P端口 | Tendermint RPC端口 | REST/ Ethereum JSON-RPC端口 | WebSocket端口 |
+| ------------ | -------- | ------------------- | ---------------------------- | -------------- |
+| `evmosnode0` | `26656`  | `26657`             | `8545`                       | `8546`         |
+| `evmosnode1` | `26659`  | `26660`             | `8547`                       | `8548`         |
+| `evmosnode2` | `26661`  | `26662`             | `8549`                       | `8550`         |
+| `evmosnode3` | `26663`  | `26664`             | `8551`                       | `8552`         |
+
+要更新二进制文件，只需重新构建并重新启动节点
+
+```bash
+make localnet-start
+```
+
+上述命令将使用Docker compose在后台运行容器。您将看到网络正在创建：
+
+```bash
+...
+Creating network "evmos_localnet" with driver "bridge"
+Creating evmosdnode0 ... done
+Creating evmosdnode2 ... done
+Creating evmosdnode1 ... done
+Creating evmosdnode3 ... done
+```
+
+### 停止本地网络
+
+完成后，执行以下命令：
+
+```bash
+make localnet-stop
+```
+
+### 配置
+
+`make localnet-start`命令通过调用`evmosd testnet`命令在`./build`目录中创建了一个4节点测试网络的文件。
+这将在`./build`目录中输出一些文件：
+
+```bash
+tree -L 3 build/
+
+build/
+├── evmosd
+├── evmosd
+├── gentxs
+│   ├── node0.json
+│   ├── node1.json
+│   ├── node2.json
+│   └── node3.json
+├── node0
+│   ├── evmosd
+│   │   ├── key_seed.json
+│   │   └── keyring-test-cosmos
+│   └── evmosd
+│       ├── config
+│       ├── data
+│       └── evmosd.log
+├── node1
+│   ├── evmosd
+│   │   ├── key_seed.json
+│   │   └── keyring-test-cosmos
+│   └── evmosd
+│       ├── config
+│       ├── data
+│       └── evmosd.log
+├── node2
+│   ├── evmosd
+│   │   ├── key_seed.json
+│   │   └── keyring-test-cosmos
+│   └── evmosd
+│       ├── config
+│       ├── data
+│       └── evmosd.log
+└── node3
+├── evmosd
+│   ├── key_seed.json
+│   └── keyring-test-cosmos
+└── evmosd
+    ├── config
+    ├── data
+    └── evmosd.log
+```
+
+每个`./build/nodeN`目录都被挂载到每个容器中的`/evmosd`目录中。
+
+### 日志记录
+
+为了查看特定节点的日志，您可以使用以下命令：
+
+```bash
+# node 0: daemon logs
+docker exec evmosdnode0 tail evmosd.log
+
+# node 0: REST & RPC logs
+docker exec evmosdnode0 tail evmosd.log
+```
+
+守护程序的日志将如下所示：
+
+```bash
+I[2020-07-29|17:33:52.452] starting ABCI with Tendermint                module=main
+E[2020-07-29|17:33:53.394] Can't add peer's address to addrbook         module=p2p err="Cannot add non-routable address 272a247b837653cf068d39efd4c407ffbd9a0e6f@192.168.10.5:26656"
+E[2020-07-29|17:33:53.394] Can't add peer's address to addrbook         module=p2p err="Cannot add non-routable address 3e05d3637b7ebf4fc0948bbef01b54d670aa810a@192.168.10.4:26656"
+E[2020-07-29|17:33:53.394] Can't add peer's address to addrbook         module=p2p err="Cannot add non-routable address 689f8606ede0b26ad5b79ae244c14cc67ab4efe7@192.168.10.3:26656"
+I[2020-07-29|17:33:58.828] Executed block                               module=state height=88 validTxs=0 invalidTxs=0
+I[2020-07-29|17:33:58.830] Committed state                              module=state height=88 txs=0 appHash=90CC5FA53CF8B5EC49653A14DA20888AD81C92FCF646F04D501453FD89FCC791
+I[2020-07-29|17:34:04.032] Executed block                               module=state height=89 validTxs=0 invalidTxs=0
+I[2020-07-29|17:34:04.034] Committed state                              module=state height=89 txs=0 appHash=0B54C4DB1A0DACB1EEDCD662B221C048C826D309FD2A2F31FF26BAE8D2D7D8D7
+I[2020-07-29|17:34:09.381] Executed block                               module=state height=90 validTxs=0 invalidTxs=0
+I[2020-07-29|17:34:09.383] Committed state                              module=state height=90 txs=0 appHash=75FD1EE834F0669D5E717C812F36B21D5F20B3CCBB45E8B8D415CB9C4513DE51
+I[2020-07-29|17:34:14.700] Executed block                               module=state height=91 validTxs=0 invalidTxs=0
+```
+
+:::tip
+您可以忽略`Can't add peer's address to addrbook`警告。只要区块被生成，并且每个节点的应用哈希相同，就不应该有任何问题。
+:::
+
+而REST和RPC服务器的日志将如下所示：
+
+```bash
+I[2020-07-30|09:39:17.488] Starting application REST service (chain-id: "7305661614933169792")... module=rest-server
+I[2020-07-30|09:39:17.488] Starting RPC HTTP server on 127.0.0.1:8545   module=rest-server
+...
+```
+
+#### 跟踪日志
+
+您还可以通过Docker使用`--follow` (`-f`)标志实时查看日志，例如：
+
+```bash
+docker logs -f evmosdnode0
+```
+
+### 与本地网络交互
+
+#### 以太坊 JSON-RPC 和 Websocket 端口
+
+要通过WebSockets或RPC/API与测试网络进行交互，您需要将请求发送到相应的端口：
+
+| EVM JSON-RPC | Eth Websocket |
+| ------------ | ------------- |
+| `8545`       | `8546`        |
+
+您可以发送如下的curl命令：
+
+```bash
+curl -X POST --data '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1}' -H "Content-Type: application/json" 192.162.10.1:8545
+```
+
+:::tip
+IP地址将是Docker容器的公共IP地址。
+:::
+
+有关如何与WebSocket交互的其他说明，请参见[事件文档](./../../develop/api/ethereum-json-rpc#ethereum-websocket)。
+
+### 密钥和账户
+
+要与`evmosd`进行交互并开始查询状态或创建交易，您可以使用任何给定节点的`evmosd`目录作为您的`home`，例如：
+
+```bash
+evmosd keys list --home ./build/node0/evmosd
+```
+
+现在已经存在账户，您可以创建新的账户并向这些账户发送资金！
+
+:::tip
+**注意**：每个节点的种子位于`./build/nodeN/evmosd/key_seed.json`，可以使用`evmosd keys add --restore`命令将其还原到CLI中。
+:::
+
+### 特殊二进制文件
+
+如果您有多个具有不同名称的二进制文件，您可以使用BINARY环境变量指定要运行的二进制文件。二进制文件的路径是相对于附加卷的。例如：
+
+```bash
+# 使用自定义二进制文件运行
+BINARY=evmos make localnet-start
+```
+
+
+
+---
+sidebar_position: 4
+---
+
 # Multi Node
 
 Following this page, you can run a localnet setup with docker

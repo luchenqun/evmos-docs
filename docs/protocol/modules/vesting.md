@@ -1,5 +1,479 @@
 # `vesting`
 
+## 摘要
+
+本文档规定了 Evmos Hub 的内部 `x/vesting` 模块。
+
+`x/vesting` 模块引入了 `ClawbackVestingAccount`，这是一种新的锁仓账户类型，
+实现了 Cosmos SDK 的 [`VestingAccount`](https://docs.cosmos.network/main/modules/auth/vesting#vesting-account-types) 接口。
+该账户用于分配需要锁仓、冻结和收回的代币。
+
+`ClawbackVestingAccount` 允许任何两方就未来的奖励计划达成协议，
+在此计划中，代币会随着时间的推移被授予权限。
+各方可以使用该账户来执行法律合同或承诺长期的共同利益。
+
+在这个承诺中，锁仓是逐渐获得转账和委托分配代币权限的机制。
+此外，冻结提供了一种机制，防止从账户中转移分配的代币
+和执行以太坊交易。
+锁仓和冻结都在账户创建时定义为计划。
+在任何时候，`ClawbackVestingAccount` 的资助者都可以执行收回操作以取回未锁仓的代币。
+应当在合同中约定执行收回操作的情况
+（例如智能合约）。
+
+对于 Evmos，`ClawbackVestingAccount` 用于将代币分配给核心团队成员和顾问，
+以激励他们长期参与项目。
+
+## 目录
+
+1. **[概念](#概念)**
+2. **[状态](#状态转换)**
+3. **[状态转换](#状态转换)**
+4. **[交易](#交易)**
+5. **[AnteHandlers](#AnteHandlers)**
+6. **[事件](#事件)**
+7. **[客户端](#客户端)**
+
+## 参考资料
+
+- SDK 锁仓规范: [https://docs.cosmos.network/main/modules/auth/vesting](https://docs.cosmos.network/main/modules/auth/vesting)
+- SDK 锁仓实现: [https://github.com/cosmos/cosmos-sdk/tree/master/x/auth/vesting](https://github.com/cosmos/cosmos-sdk/tree/master/x/auth/vesting)
+- Agoric 的锁仓收回账户: [https://github.com/Agoric/agoric-sdk/issues/4085](https://github.com/Agoric/agoric-sdk/issues/4085)
+- Agoric 的 `vestcalc` 工具: [https://github.com/agoric-labs/cosmos-sdk/tree/Agoric/x/auth/vesting/cmd/vestcalc](https://github.com/agoric-labs/cosmos-sdk/tree/Agoric/x/auth/vesting/cmd/vestcalc)
+
+## 概念
+
+### 解锁
+
+解锁是将“未解锁”转换为“已解锁”代币的过程，而不转移这些代币的所有权。
+在未解锁状态下，代币不能转移到其他账户，也不能委托给验证者或用于治理。
+解锁计划描述了代币解锁的数量和时间。
+首次解锁代币的持续时间称为“cliff”。
+
+### 锁定
+
+锁定描述了将代币从“锁定”状态转换为“未锁定”状态的计划。
+只要所有代币都被锁定，该账户就无法执行任何使用`x/evm`模块花费EVMOS的以太坊交易。
+但是，该账户可以执行不涉及花费EVMOS代币的以太坊交易。
+此外，锁定的代币不能转移到其他账户。
+如果代币同时处于锁定和解锁状态，则可以将其委托给验证者，但不能转移到其他账户。
+
+下表总结了受到解锁和锁定组合约束的代币所允许的操作：
+
+| 代币状态                | 转账 | 委托 | 投票 | 花费EVMOS的以太坊交易\*\* | 不花费EVMOS的以太坊交易（金额 = 0）\*\* |
+| ----------------------- | :--: | :--: | :--: | :-----------------------: | :------------------------------------: |
+| `锁定` & `未解锁`        |  ❌   |  ❌   |  ❌   |            ❌              |                  ✅                   |
+| `锁定` & `已解锁`        |  ❌   |  ✅   |  ✅   |            ❌              |                  ✅                   |
+| `未锁定` & `未解锁`      |  ❌   |  ❌   |  ❌   |            ❌              |                  ✅                   |
+| `未锁定` & `已解锁`\*    |  ✅   |  ✅   |  ✅   |            ✅              |                  ✅                   |
+
+\*质押奖励已解锁和已解锁
+
+\*\*仅当EVM交易涉及发送锁定或未解锁的EVMOS代币时，交易才会失败，
+例如将EVMOS发送到EOA或智能合约（如果金额> 0，则失败）。
+
+### 计划表
+
+锁定和解锁计划指定了代币解锁或解锁的数量和时间。
+它们被定义为[`periods`](https://docs.cosmos.network/main/modules/auth/vesting#period)，
+其中每个期间都有自己的长度和数量。
+例如，典型的锁定计划从一个一年期开始，表示锁定悬崖，
+然后是几个月的锁定期，直到总分配的锁定数量解锁。
+
+可以使用 Agoric 的[`vestcalc`](https://github.com/agoric-labs/cosmos-sdk/tree/Agoric/x/auth/vesting/cmd/vestcalc)工具轻松创建锁定或解锁计划。
+例如，
+要计算一个为期四年的锁定计划，其中包括一年的悬崖期，并从2022年1月开始，可以运行以下命令：
+
+```bash
+vestcalc --write --start=2022-01-01 --coins=200000000000000000000000aevmos --months=48 --cliffs=2023-01-01
+```
+
+### 收回
+
+如果`ClawbackVestingAccount`的基础承诺或合约被违反，
+收回机制可以将未解锁的资金返还给原始资金提供者。
+`ClawbackVestingAccount`的资金提供者是在创建账户时发送代币到该账户的地址。
+只有资金提供者才能执行收回操作，将资金返还到他们的账户。
+或者，他们可以指定一个目标地址来发送未解锁的资金。
+
+## 状态
+
+### 状态对象
+
+`x/vesting`模块不会在自己的存储中保存对象。
+相反，它使用SDK的`auth`模块将账户对象存储在状态中，
+使用[账户接口](https://docs.cosmos.network/main/modules/auth#account-interface)。
+账户在外部以接口的形式暴露，并在内部作为收回锁定账户存储。
+
+### ClawbackVestingAccount
+
+实现了[锁定账户](https://docs.cosmos.network/main/modules/auth/vesting#vesting-account-types)接口的实例。
+它提供了一个可以持有受限制的贡献的账户，
+或者可以收回未解锁代币的锁定账户，
+或者两者兼而有之（代币解锁，但仍然被锁定）。
+
+```go
+type ClawbackVestingAccount struct {
+	// base_vesting_account implements the VestingAccount interface. It contains
+	// all the necessary fields needed for any vesting account implementation
+	*types.BaseVestingAccount `protobuf:"bytes,1,opt,name=base_vesting_account,json=baseVestingAccount,proto3,embedded=base_vesting_account" json:"base_vesting_account,omitempty"`
+	// funder_address specifies the account which can perform clawback
+	FunderAddress string `protobuf:"bytes,2,opt,name=funder_address,json=funderAddress,proto3" json:"funder_address,omitempty"`
+	// start_time defines the time at which the vesting period begins
+	StartTime time.Time `protobuf:"bytes,3,opt,name=start_time,json=startTime,proto3,stdtime" json:"start_time"`
+	// lockup_periods defines the unlocking schedule relative to the start_time
+	LockupPeriods []types.Period `protobuf:"bytes,4,rep,name=lockup_periods,json=lockupPeriods,proto3" json:"lockup_periods"`
+	// vesting_periods defines the vesting schedule relative to the start_time
+	VestingPeriods []types.Period `protobuf:"bytes,5,rep,name=vesting_periods,json=vestingPeriods,proto3" json:"vesting_periods"`
+}
+```
+
+#### BaseVestingAccount
+
+实现了 `VestingAccount` 接口。
+它包含了任何锁仓账户实现所需的所有必要字段。
+
+#### FunderAddress
+
+指定提供原始代币并能够执行收回的账户。
+
+#### StartTime
+
+定义锁仓和解锁计划开始的时间。
+
+#### LockupPeriods
+
+定义相对于开始时间的解锁计划。
+
+#### VestingPeriods
+
+定义相对于开始时间的锁仓计划。
+
+### 创世状态
+
+`x/vesting` 模块允许在创世时定义 `ClawbackVestingAccounts`。
+在这种情况下，账户余额必须记录在 SDK `bank` 模块的余额中，
+或通过 `add-genesis-account` CLI 命令自动调整。
+
+## 状态转换
+
+`x/vesting` 模块允许进行状态转换，创建和更新带有 `CreateClawbackVestingAccount` 的收回锁仓账户，
+或使用 `Clawback` 收回未解锁的资金。
+
+### 创建收回锁仓账户
+
+资助者创建一个新的收回锁仓账户，定义要资助的地址以及锁仓/解锁计划。
+此外，可以使用相同的消息向现有的收回锁仓账户添加新的授权。
+
+1. 资助者通过其中一个客户端提交 `MsgCreateClawbackVestingAccount`。
+2. 检查是否
+    1. 锁仓账户地址未被阻止
+    2. 提供了至少一个锁仓或解锁计划。
+       如果其中一个不存在，则默认为即时锁仓或解锁计划。
+    3. 锁仓和锁仓总金额相等
+3. 创建或更新收回锁仓账户，并将代币从资助者发送到锁仓账户
+    1. 如果收回锁仓账户已存在且 `--merge` 设置为 true，
+       则将授权添加到现有的总锁仓金额，并更新锁仓和解锁计划。
+    2. 否则创建一个新的收回锁仓账户
+
+### 收回
+
+资助地址是唯一能够执行收回的地址。
+
+1. 资助者通过其中一个客户端提交 `MsgClawback`。
+2. 检查是否
+    1. 给定了目标地址，如果没有则默认为资助者地址
+    2. 目标地址未被阻止
+    3. 账户存在且为收回锁仓账户
+    4. 账户的资助者与消息中的相同
+3. 将未解锁的代币从收回锁仓账户转移到目标地址，
+   更新解锁计划并移除未来的锁仓事件。
+
+### 更新回购锁定账户的资金提供者
+
+只有当前的资金提供者才能更新现有回购锁定账户的资金提供地址。
+
+1. 资金提供者通过其中一个客户端提交 `MsgUpdateVestingFunder`。
+2. 检查以下内容：
+    1. 新的资金提供地址未被阻止。
+    2. 锁定账户存在且为回购锁定账户。
+    3. 账户的资金提供者与消息中的相同。
+3. 使用新的资金提供地址更新锁定账户的资金提供者。
+
+### 转换锁定账户
+
+当所有代币都解锁后，锁定账户可以转换为 `ETHAccount`。
+
+1. 锁定账户的所有者通过其中一个客户端提交 `MsgConvertVestingAccount`。
+2. 检查以下内容：
+    1. 锁定账户存在且为回购锁定账户。
+    2. 锁定账户的锁定和解锁计划已经结束。
+3. 将锁定账户转换为 `EthAccount`。
+
+## 交易
+
+本节定义了在前一节中定义的状态转换所产生的具体 `sdk.Msg` 类型。
+
+### `CreateClawbackVestingAccount`
+
+```go
+type MsgCreateClawbackVestingAccount struct {
+	// from_address specifies the account to provide the funds and sign the
+	// clawback request
+	FromAddress string `protobuf:"bytes,1,opt,name=from_address,json=fromAddress,proto3" json:"from_address,omitempty"`
+	// to_address specifies the account to receive the funds
+	ToAddress string `protobuf:"bytes,2,opt,name=to_address,json=toAddress,proto3" json:"to_address,omitempty"`
+	// start_time defines the time at which the vesting period begins
+	StartTime time.Time `protobuf:"bytes,3,opt,name=start_time,json=startTime,proto3,stdtime" json:"start_time"`
+	// lockup_periods defines the unlocking schedule relative to the start_time
+	LockupPeriods []types.Period `protobuf:"bytes,4,rep,name=lockup_periods,json=lockupPeriods,proto3" json:"lockup_periods"`
+	// vesting_periods defines thevesting schedule relative to the start_time
+	VestingPeriods []types.Period `protobuf:"bytes,5,rep,name=vesting_periods,json=vestingPeriods,proto3" json:"vesting_periods"`
+	// merge specifies a the creation mechanism for existing
+	// ClawbackVestingAccounts. If true, merge this new grant into an existing
+	// ClawbackVestingAccount, or create it if it does not exist. If false,
+	// creates a new account. New grants to an existing account must be from the
+	// same from_address.
+	Merge bool `protobuf:"varint,6,opt,name=merge,proto3" json:"merge,omitempty"`
+}
+```
+
+如果消息内容的无状态验证失败，则会出现以下情况：
+
+- `FromAddress` 或 `ToAddress` 无效。
+- `LockupPeriods` 和 `VestingPeriods`
+    - 包含长度为非正数的期间。
+    - 描述相同总金额。
+
+### `Clawback`
+
+```go
+type MsgClawback struct {
+	// funder_address is the address which funded the account
+	FunderAddress string `protobuf:"bytes,1,opt,name=funder_address,json=funderAddress,proto3" json:"funder_address,omitempty"`
+	// account_address is the address of the ClawbackVestingAccount to claw back from.
+	AccountAddress string `protobuf:"bytes,2,opt,name=account_address,json=accountAddress,proto3" json:"account_address,omitempty"`
+	// dest_address specifies where the clawed-back tokens should be transferred
+	// to. If empty, the tokens will be transferred back to the original funder of
+	// the account.
+	DestAddress string `protobuf:"bytes,3,opt,name=dest_address,json=destAddress,proto3" json:"dest_address,omitempty"`
+}
+```
+
+如果消息内容的无状态验证失败，则会出现以下情况：
+
+- `FunderAddress` 或 `AccountAddress` 无效。
+- `DestAddress` 不为空且无效。
+
+### `UpdateVestingFunder`
+
+```go
+type MsgUpdateVestingFunder struct {
+	// funder_address is the current funder address of the ClawbackVestingAccount
+	FunderAddress string `protobuf:"bytes,1,opt,name=funder_address,json=funderAddress,proto3" json:"funder_address,omitempty"`
+	// new_funder_address is the new address to replace the existing funder_address
+	NewFunderAddress string `protobuf:"bytes,2,opt,name=new_funder_address,json=newFunderAddress,proto3" json:"new_funder_address,omitempty"`
+	// vesting_address is the address of the ClawbackVestingAccount being updated
+	VestingAddress string `protobuf:"bytes,3,opt,name=vesting_address,json=vestingAddress,proto3" json:"vesting_address,omitempty"`
+}
+```
+
+如果消息内容的无状态验证失败，则会出现以下情况：
+
+- `FunderAddress`、`NewFunderAddress` 或 `VestingAddress` 无效。
+
+### `ConvertVestingAccount`
+
+```go
+type MsgConvertVestingAccount struct {
+	// vesting_address is the address of the ClawbackVestingAccount being updated
+	VestingAddress string `protobuf:"bytes,2,opt,name=vesting_address,json=vestingAddress,proto3" json:"vesting_address,omitempty"`
+}
+```
+
+如果消息内容的无状态验证失败，则会出现以下情况：
+
+- `VestingAddress` 无效。
+
+## AnteHandlers
+
+`x/vesting` 模块提供了递归链接在一起的 `AnteDecorator`，形成一个单一的 [`Antehandler`](https://github.com/cosmos/cosmos-sdk/blob/v0.43.0-alpha1/docs/architecture/adr-010-modular-antehandler.md)。
+这些装饰器对以太坊或 SDK 交易执行基本的有效性检查，以便可以将其从交易内存池中丢弃。
+
+请注意，`AnteHandler` 在 `CheckTx` 和 `DeliverTx` 阶段都会被调用，因为 Tendermint 提议者目前有能力在他们的提议块中包含失败的 `CheckTx` 事务。
+
+### 装饰器
+
+以下装饰器实现了代币委托的锁定逻辑和执行 EVM 事务。
+
+#### `VestingDelegationDecorator`
+
+验证交易是否包含未解锁代币的委托。如果以下条件之一不满足，此 AnteHandler 装饰器将失败：
+
+- 消息不是 `MsgDelegate`
+- 发送方账户不存在
+- 发送方账户不是 `ClawbackVestingAccount`
+- 委托金额大于已解锁的代币数量
+
+#### `EthVestingTransactionDecorator`
+
+验证是否允许回收锁定账户执行以太坊事务，基于其解锁计划是否已超过锁定期和首个锁定期。还验证账户是否有足够的未锁定代币来执行事务。如果以下条件之一不满足，此 AnteHandler 装饰器将失败：
+
+- 消息不是 `MsgEthereumTx`
+- 发送方账户不存在
+- 发送方账户不是 `ClawbackVestingAccount`
+- 区块时间早于超过锁定期结束时间（无解锁代币）且
+- 区块时间早于超过所有锁定期（有锁定代币）
+- 发送方账户的未锁定代币不足以执行事务
+
+## 事件
+
+`x/vesting` 模块会发出以下事件：
+
+### 创建回收锁定账户
+
+| 类型                              | 属性键         | 属性值                            |
+| --------------------------------- | -------------- | --------------------------------- |
+| `create_clawback_vesting_account` | `"from"`       | `{msg.FromAddress}`               |
+| `create_clawback_vesting_account` | `"coins"`      | `{vestingCoins.String()}`         |
+| `create_clawback_vesting_account` | `"start_time"` | `{msg.StartTime.String()}`        |
+| `create_clawback_vesting_account` | `"merge"`      | `{strconv.FormatBool(msg.Merge)}` |
+| `create_clawback_vesting_account` | `"amount"`     | `{msg.ToAddress}`                 |
+
+### 撤销
+
+| 类型       | 属性键         | 属性值                |
+| ---------- | -------------- | --------------------- |
+| `clawback` | `"funder"`     | `{msg.FromAddress}`   |
+| `clawback` | `"account"`    | `{msg.AccountAddress}` |
+| `clawback` | `"destination"`| `{msg.DestAddress}`   |
+
+### 更新撤销锁定账户的资金提供者
+
+| 类型                    | 属性键      | 属性值                    |
+| ----------------------- | -------------- | ------------------------ |
+| `update_vesting_funder` | `"funder"`     | `{msg.FromAddress}`      |
+| `update_vesting_funder` | `"account"`    | `{msg.VestingAddress}`   |
+| `update_vesting_funder` | `"new_funder"` | `{msg.NewFunderAddress}` |
+
+## 客户端
+
+用户可以使用CLI、gRPC或REST查询Evmos的`x/vesting`模块。
+
+### CLI
+
+以下是使用`x/vesting`模块添加到`evmosd`命令的列表。
+您可以使用`evmosd -h`命令获取完整列表。
+
+#### 创世
+
+创世配置命令允许用户配置创世`vesting`账户状态。
+
+`add-genesis-account`
+
+允许用户在创世时设置带有代币分配的撤销锁定账户，受到撤销的限制。
+必须提供一个锁定期文件（`--lockup`），一个锁定期文件（`--vesting`）或两者都有。
+
+如果两个文件都给出了，它们必须描述相同总金额的计划。
+如果省略了一个文件，它将默认为立即解锁或解除锁定整个金额的计划。
+描述的代币金额将从`--from`地址转移到锁定账户。
+如果代币被锁定或未解锁，则无法将其从账户转出。
+只有解锁的代币可以质押。
+有关如何设置的示例，请参见[此链接](https://github.com/evmos/evmos/pull/303)。
+
+```go
+evmosd add-genesis-account ADDRESS_OR_KEY_NAME COIN... [flags]
+```
+
+#### 查询
+
+`query`命令允许用户查询`vesting`账户状态。
+
+**`balances`**
+
+允许用户查询给定锁定账户的已锁定、未解锁和解锁代币。
+
+```go
+evmosd查询归属余额地址[标志]
+```
+
+#### 交易
+
+`tx`命令允许用户创建和收回`归属`账户状态。
+
+**`create-clawback-vesting-account`**
+
+允许用户创建一个新的归属账户，并提供一定数量的代币用于资金分配，同时可以进行收回。
+必须提供一个锁定期文件（--lockup），一个归属期文件（--vesting），或者两者都提供。
+
+如果两个文件都提供，它们必须描述相同总金额的计划。
+如果一个文件被省略，它将默认为立即解锁或归属整个金额的计划。
+描述的代币数量将从--from地址转移到归属账户。
+如果代币被锁定或未归属，将无法从账户中转出。
+只有已归属的代币可以进行质押。
+有关如何设置的示例，请参见[此链接](https://github.com/evmos/evmos/pull/303)。
+
+```go
+evmosd tx vesting create-clawback-vesting-account TO_ADDRESS [标志]
+```
+
+**`clawback`**
+
+允许用户将未归属的金额从ClawbackVestingAccount中转出。
+必须由原始资金提供者地址（--from）请求，并可以提供目标地址（--dest），否则代币将返回给资金提供者。
+委托或取消委托的质押代币将以委托（取消委托）状态转移。
+接收者可能会受到惩罚，如果需要，必须采取行动解除质押代币。
+
+```go
+evmosd tx vesting clawback ADDRESS [标志]
+```
+
+**`update-vesting-funder`**
+
+允许用户更新现有`ClawbackVestingAccount`的资金提供者。
+必须由原始资金提供者地址（`--from`）请求。
+要执行此操作，用户需要提供两个参数：
+
+1. 新的资金提供者地址
+2. 归属账户地址
+
+```go
+evmosd tx vesting update-vesting-funder VESTING_ACCOUNT_ADDRESS NEW_FUNDER_ADDRESS --from=FUNDER_ADDRESS [标志]
+```
+
+**`convert`**
+
+允许用户将其归属账户转换为链上的默认账户（即`EthAccount`）。
+要执行此操作，用户需要提供一个参数：
+
+1. 质押账户地址
+
+```go
+evmosd tx vesting convert VESTING_ACCOUNT_ADDRESS [flags]
+```
+
+### gRPC
+
+#### 查询
+
+| 动词   | 方法                                 | 描述                            |
+| ------ | -------------------------------------- | -------------------------------------- |
+| `gRPC` | `evmos.vesting.v1.Query/Balances`      | 获取锁定、未解锁和已解锁的代币 |
+| `GET`  | `/evmos/vesting/v1/balances/{address}` | 获取锁定、未解锁和已解锁的代币 |
+
+#### 交易
+
+| 动词   | 方法                                                 | 描述                      |
+| ------ | ------------------------------------------------------ | -------------------------------- |
+| `gRPC` | `evmos.vesting.v1.Msg/CreateClawbackVestingAccount`    | 创建回收质押账户 |
+| `gRPC` | `/evmos.vesting.v1.Msg/Clawback`                       | 执行回收                |
+| `gRPC` | `/evmos.vesting.v1.Msg/UpdateVestingFunder`            | 更新质押账户的资金提供者   |
+| `GET`  | `/evmos/vesting/v1/tx/create_clawback_vesting_account` | 创建回收质押账户 |
+| `GET`  | `/evmos/vesting/v1/tx/clawback`                        | 执行回收                |
+| `GET`  | `/evmos/vesting/v1/tx/update_vesting_funder`           | 更新质押账户的资金提供者   |
+
+
+# `vesting`
+
 ## Abstract
 
 This document specifies the internal `x/vesting` module of the Evmos Hub.

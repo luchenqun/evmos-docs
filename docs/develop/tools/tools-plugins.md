@@ -1,3 +1,21 @@
+# 工具和 IDE 插件
+
+## 智能合约开发工具
+
+- [Remix](https://remix.ethereum.org/#optimize=false&runs=200&evmVersion=null&version=soljson-v0.8.17+commit.8df45f5f.js) 是一个免费的基于浏览器的集成开发环境（IDE），用于在以太坊区块链上编写、测试和部署智能合约。它旨在通过提供简单易用的界面，帮助开发人员更轻松地开始构建去中心化应用（dapps）。使用 Remix，您可以编写、测试和部署用 Solidity 编写的智能合约。它还包括调试工具和模拟环境，用于在部署到区块链之前测试合约。该工具还提供插件功能。
+- [Truffle Suite](https://trufflesuite.com/docs/) 包含一套全面的工具，用于简化构建、测试和部署智能合约，并将其部署到任何 EVM 网络（如 EVMOS 网络）中，使用 JavaScript/TypeScript。该套件包含 [Truffle](https://trufflesuite.com/docs/truffle/)，用于编译、测试、调试和部署智能合约开发。[Ganache](https://trufflesuite.com/docs/ganache/) 提供了一个带有 UI 和 CLI 功能的简单快速的本地区块链开发环境。[Drizzle](https://trufflesuite.com/docs/drizzle/) 提供了前端库，通过 React 组件实现了符合标准的钱包连接、账户和合约状态管理。
+- [Foundary](https://getfoundry.sh/) 是一个 RUST 工具包，可实现快速、便携和模块化的以太坊和 EVM 兼容链应用程序开发。
+- [Hardhat](https://hardhat.org/) 是一个 JS/TS 库，允许全面测试、开发和部署智能合约。Hardhat 包含许多 [插件](https://hardhat.org/hardhat-runner/plugins)，以帮助进一步的开发。
+
+## 开源合约
+
+- [OpenZeppelin](https://www.openzeppelin.com/contracts) 包含经过实战检验的智能合约库，适用于以太坊兼容链，并包括最常用的 ERC 标准。
+
+## IDE
+
+- [Truffle for VSCode](https://trufflesuite.com/docs/vscode-ext/) 是一个 Visual Studio Code 扩展，它简化了在以太坊和兼容 EVM 的区块链上创建、构建、调试和部署智能合约的过程。
+
+
 ---
 sidebar_position: 4
 ---

@@ -1,3 +1,60 @@
+# 快照和归档节点
+
+使用快照快速同步您的节点与 Evmos，或者使用归档节点查询之前的版本
+
+## 快照和归档列表
+
+以下是一些公开可用的快照列表，您可以使用它们与 Evmos 主网同步，或者与归档的 [9001-1 主网](https://github.com/evmos/mainnet/tree/main/evmos_9001-1) 进行查询：
+
+### 快照
+
+| 名称        | URL                                                                     |
+| -------------|------------------------------------------------------------------------ |
+| `Staketab`   | [github.com/staketab/nginx-cosmos-snap](https://github.com/staketab/nginx-cosmos-snap/blob/main/docs/evmos.md) |
+| `Polkachu`   | [polkachu.com](https://www.polkachu.com/tendermint_snapshots/evmos)                   |                |
+| `Notional`   | [mainnet/pruned/evmos_9001-2(pebbledb)](https://snapshot.notional.ventures/evmos/) <br /> [mainnet/archive/evmos_9001-2(pebbledb)](https://snapshot.notional.ventures/evmos-archive/) <br /> [testnet/archive/evmos_9000-4(pebbledb)](https://snapshot.notional.ventures/evmos-testnet-archive/)                   |
+| `Windpowerstake`   | [mainnet/archive/evmos_9001-2(goleveldb)](http://backup03.windpowerstake.com/)                    |
+
+### 归档
+
+| 名称           | URL                                                                             |
+| ---------------|---------------------------------------------------------------------------------|                            
+| `Polkachu`     | [polkachu.com/tendermint_snapshots/evmos](https://www.polkachu.com/tendermint_snapshots/evmos)   |                        
+
+
+### PebbleDB
+
+如果使用 Notional 的快照，可以使用 PebbleDB 替代 GoLevelDB：
+
+构建：
+
+```bash
+go mod edit -replace github.com/tendermint/tm-db=github.com/baabeetaa/tm-db@pebble
+go mod tidy
+go install -tags pebbledb -ldflags "-w -s -X github.com/cosmos/cosmos-sdk/types.DBBackend=pebbledb" ./...
+```
+
+下载快照：
+
+```bash
+cd $HOME/.evmosd/
+URL_SNAPSHOT="https://snapshot.notional.ventures/evmos/data_20221024_193254.tar.gz"
+wget -O - "$URL_SNAPSHOT" |tar -xzf -
+```
+
+启动：
+
+在 `config.toml` 中设置 `db_backend = "pebbledb"` 或者使用 `--db_backend=pebbledb` 启动
+
+```bash
+evmosd start --db_backend=pebbledb
+```
+
+**注意**：如果升级运行 PebbleDB 的节点，请使用此[解决方法](https://github.com/notional-labs/cosmosia/blob/main/docs/pebbledb.md)。
+
+Please paste the Markdown content that you would like me to translate.
+
+
 # Snapshots & Archive Nodes
 
 Quickly sync your node with Evmos using a snapshot or serve queries for prev versions using archive nodes 

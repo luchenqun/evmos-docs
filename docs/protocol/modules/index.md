@@ -1,3 +1,45 @@
+# 模块列表
+
+以下是可以在 Evmos 区块链上使用的所有生产级模块，以及它们各自的文档：
+
+- [claims](claims.md) - 主网发布的奖励状态和认领流程。
+- [epochs](epochs.md) - 每个周期（也称为时期）执行自定义状态转换。
+- [erc20](erc20.md) - 在 Evmos 的 EVM 和 Cosmos 运行时之间进行可信、链上的双向内部代币转换。
+- [evm](evm.md) - 在 Cosmos 上部署和执行智能合约。
+- [feemarket](feemarket.md) - 基于 EIP1559 规范的费用市场实现。
+- [revenue](revenue.md) - 将 EVM 交易费用分配给区块提议者和智能合约开发者。
+- [incentives](incentives.md) - 激励用户与经过治理批准的智能合约进行交互。
+- [inflation](inflation.md) - 铸造代币并将其分配给质押奖励、使用激励和社区资金池。
+- [recovery](recovery.md) - 恢复在不支持的 Evmos 账户上被卡住的代币。
+- [vesting](vesting.md) - 具有锁定和收回功能的解锁账户。
+
+## Cosmos SDK
+
+Evmos 使用以下 Cosmos SDK 模块：
+
+- [auth](https://docs.cosmos.network/main/modules/auth) - 用于 Cosmos SDK 应用程序的账户和交易认证。
+- [authz](https://docs.cosmos.network/main/modules/authz) - 允许账户代表其他账户执行操作的授权。
+- [bank](https://docs.cosmos.network/main/modules/bank) - 代币转账功能。
+- [capability](https://docs.cosmos.network/v0.47/modules/capability) - 对象能力实现。
+- [crisis](https://docs.cosmos.network/main/modules/crisis) - 在特定情况下（例如，不变量被破坏）停止区块链。
+- [distribution](https://docs.cosmos.network/main/modules/distribution) - 费用分配和质押代币供应分配。
+- [evidence](https://docs.cosmos.network/main/modules/evidence) - 处理双重签名、恶意行为等证据。
+- [feegrant](https://docs.cosmos.network/main/modules/feegrant) - 授予执行交易的费用津贴。
+- [genutil](https://github.com/cosmos/cosmos-sdk/tree/main/x/genutil) - 用于区块链应用程序内部使用的各种创世工具功能。
+- [gov](https://docs.cosmos.network/main/modules/gov) - 链上提案和投票。
+- [params](https://docs.cosmos.network/main/modules/params) - 全局可用的参数存储。
+- [slashing](https://docs.cosmos.network/main/modules/slashing) - 验证人惩罚机制。
+- [staking](https://docs.cosmos.network/main/modules/staking) - 公共区块链的权益证明层。
+- [upgrade](https://docs.cosmos.network/main/modules/upgrade) - 软件升级处理和协调。
+
+## IBC
+
+Evmos在SDK中使用以下IBC模块：
+
+- [interchain-accounts](https://ibc.cosmos.network/main/apps/interchain-accounts/overview.html)
+- [transfer](https://ibc.cosmos.network/main/apps/transfer/overview.html)
+
+
 ---
 sidebar_position: 3
 ---

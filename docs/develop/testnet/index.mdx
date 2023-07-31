@@ -1,41 +1,37 @@
+# 测试网络
+
+import { chainConfig, handler } from "@site/src/utils/ChainConfig";
+
+Evmos 测试网络是一个分布式的区块链网络，与主网并行运行。它允许开发者在一个安全可靠的环境中测试和部署他们的去中心化应用（dApps），而不会有真实资金的风险。测试网络由验证者使用与 Evmos 主网相同的软件运行，这意味着它是使用以太坊虚拟机（EVM）构建的，并支持以太坊工具链。这使得它与现有的基于以太坊的应用程序和工具的庞大生态系统兼容。
+
+使用 Evmos 测试网络为 dApp 开发者提供了几个好处。首先，它使他们能够在一个沙盒环境中测试和改进他们的智能合约和 dApps，而不会有昂贵错误的风险。开发者可以尝试不同的用例和场景，模拟各种网络条件，并对他们的应用进行压力测试，以确保其可扩展性和弹性。其次，Evmos 测试网络为开发者提供了一个社区驱动和协作的平台，可以共享知识、最佳实践和代码。这可以帮助开发者加快开发过程，并利用丰富的资源和专业知识。
+
+在下面了解如何连接到测试网络，并从水龙头请求测试代币开始开发。请注意，测试网络上的代币没有实际价值，所以您不必担心损失资金。
+
+## 连接到测试网络
+
+:::tip 将 Evmos 测试网络添加到 Keplr。
+
+<button onClick={() => handler()} className="bg-red mt-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
+  添加测试网络配置
+</button>
+
+要将 Evmos 添加到 Metamask，请访问[此处](https://chainlist.org/?testnets=true&search=evmos)添加测试网络和主网。 :::
+
 # Testnet
 
-import { chainConfig, handler } from '@site/src/utils/ChainConfig';
+The Evmos Testnet is a decentralized blockchain network that runs parallel to the Mainnet. It allows developers to test and deploy their decentralized applications (dApps) in a safe and secure environment without the risk of losing real funds. It is run by Validators using the same software as on the Evmos Mainnet, which means it is built using the Ethereum Virtual Machine (EVM) and supports the Ethereum toolchain. This makes it compatible with a vast ecosystem of existing Ethereum-based applications and tools.
 
-The Evmos Testnet is a decentralized blockchain network
-that runs parallel to the Mainnet.
-It allows developers to test and deploy their decentralized applications (dApps)
-in a safe and secure environment without the risk of losing real funds.
-It is run by Validators using the same software as on the Evmos Mainnet,
-which means it is built using the Ethereum Virtual Machine (EVM)
-and supports the Ethereum toolchain.
-This makes it compatible with a vast ecosystem
-of existing Ethereum-based applications and tools.
+Using the Evmos Testnet provides several benefits for dApp developers. Firstly, it enables them to test and refine their smart contracts and dApps in a sandbox environment without the risk of making costly mistakes. Developers can experiment with different use cases and scenarios, simulate various network conditions, and stress test their applications to ensure they are scalable and resilient. Secondly, the Evmos Testnet provides a community-driven and collaborative platform for developers to share knowledge, best practices, and code. This can help developers to speed up their development process and tap into a wealth of resources and expertise.
 
-Using the Evmos Testnet provides several benefits for dApp developers.
-Firstly, it enables them to test and refine their smart contracts
-and dApps in a sandbox environment without the risk of making costly mistakes.
-Developers can experiment with different use cases and scenarios,
-simulate various network conditions,
-and stress test their applications to ensure they are scalable and resilient.
-Secondly, the Evmos Testnet provides a community-driven
-and collaborative platform for developers to share knowledge, best practices, and code.
-This can help developers to speed up their development process
-and tap into a wealth of resources and expertise.
-
-Find out below how to connect to Testnet
-and request testnet tokens from the Faucet to start developing.
-Note, that tokens on Testnet don’t have actual value,
-so that you don’t need to worry about losing funds.
+Find out below how to connect to Testnet and request testnet tokens from the Faucet to start developing. Note, that tokens on Testnet don’t have actual value, so that you don’t need to worry about losing funds.
 
 ## Connect to Testnet
 
-:::tip
-Add Evmos Testnet to Keplr.
+:::tip Add Evmos Testnet to Keplr.
 
 <button onClick={() => handler()} className="bg-red mt-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
   Add Configuration to Testnet
 </button>
 
-To add Evmos to Metamask, head over [here](https://chainlist.org/?testnets=true&search=evmos) to add Testnet and Mainnet.
-:::
+To add Evmos to Metamask, head over [here](https://chainlist.org/?testnets=true&search=evmos) to add Testnet and Mainnet. :::

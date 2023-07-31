@@ -2,6 +2,391 @@
 sidebar_position: 3
 ---
 
+# Staking（质押）
+
+## Solidity 接口和 ABI
+
+`Staking.sol` 是一个接口，通过它 Solidity 合约可以与 Cosmos SDK 的质押模块进行交互。
+对于开发人员来说，这非常方便，因为他们不需要了解 Cosmos SDK 中 `x/staking` 模块的具体实现细节。
+相反，他们可以使用他们熟悉的以太坊接口与质押功能进行交互。
+
+### 接口 `Staking.sol`
+
+在 [evmos/extensions 仓库中找到 Solidity 接口](https://github.com/evmos/extensions/blob/main/precompiles/stateful/Staking.sol)。
+
+### ABI
+
+在 [evmos/extensions 仓库中找到 ABI](https://github.com/evmos/extensions/blob/main/precompiles/abi/staking.json)。
+
+## 交易
+
+质押的 Solidity 接口包括以下交易：
+
+- `delegate`（委托）
+
+    `delegate` 定义了一种从委托人向验证人委托代币的方法。
+
+    ```solidity
+    function delegate(
+        address delegatorAddress,
+        string memory validatorAddress,
+        uint256 amount
+    ) external returns (bool success);
+    ```
+
+- `undelegate`
+
+    `undelegate` defines a method for performing an undelegation from a delegate and a validator.
+
+    ```solidity
+    function undelegate(
+        address delegatorAddress,
+        string memory validatorAddress,
+        uint256 amount
+    ) external returns (int64 completionTime);
+    ```
+
+- `redelegate`
+
+    Redelegate defines a method for performing a redelegation
+    of coins from a delegator and source validator to a destination validator
+
+    ```solidity
+    function redelegate(
+        address delegatorAddress,
+        string memory validatorSrcAddress,
+        string memory validatorDstAddress,
+        uint256 amount
+    ) external returns (int64 completionTime);
+    ```
+
+- `cancelUnbondingDelegation`
+
+    `cancelUnbondingDelegation` allows delegators to cancel the unbondingDelegation entry
+    and to delegate back to a previous validator.
+
+    ```solidity
+    function cancelUnbondingDelegation(
+        address delegatorAddress,
+        string memory validatorAddress,
+        uint256 amount,
+        uint256 creationHeight
+    ) external returns (bool success);
+    ```
+
+## Queries
+
+- `delegation`
+
+    get the given amount of the bond denomination to a validator.
+
+    ```solidity
+    function delegation(
+            address delegatorAddress,
+            string memory validatorAddress
+        ) external view returns (uint256 shares, Coin calldata balance);
+    ```
+
+- `unbondingDelegation`
+
+    `unbondingDelegation` returns the unbonding delegation
+
+    ```solidity
+    function unbondingDelegation(
+            address delegatorAddress,
+            string memory validatorAddress
+        ) external view returns (UnbondingDelegationEntry[] calldata entries);
+    ```
+
+- `validator`
+
+    `validator` queries validator info for given validator address
+
+    ```solidity
+    function validator(
+            string memory validatorAddress
+        )
+        external view returns (
+            Validator calldata validator
+        );
+    ```
+
+- `validators`
+
+    `validators` queries all validators that match the given status
+
+    ```solidity
+    function validators(
+            string memory status,
+            PageRequest calldata pageRequest
+        ) external view returns (
+            Validator[] calldata validators,
+            PageResponse calldata pageResponse
+        );
+    ```
+
+- `redelegation`
+
+    `redelegation` queries all redelegations from a source to a destination validator for a given delegator
+
+    ```solidity
+    function redelegation(
+            address delegatorAddress,
+            string memory srcValidatorAddress,
+            string memory dstValidatorAddress
+        ) external view returns (RedelegationEntry[] calldata entries);
+    ```
+
+- `redelegations`
+
+    `redelegations` queries all redelgations based on the specified criteria:
+    for a given delegator and/or origin validator address
+    and/or destination validator address
+    in a specified pagination manner.
+
+    ```solidity
+    function redelegations(
+        address delegatorAddress,
+        string memory srcValidatorAddress,
+        string memory dstValidatorAddress,
+        PageRequest calldata pageRequest
+    )
+        external
+        view
+        returns (
+            RedelegationResponse[] calldata response,
+            PageResponse calldata pageResponse
+        );
+    ```
+
+## Events
+
+Each of the transactions emits its corresponding event. These are:
+
+- `Delegate`
+
+    Delegate defines an Event emitted when a given amount
+    of tokens are delegated from the delegator address to the validator address
+
+    ```solidity
+    event Delegate(
+            address indexed delegatorAddress,
+            string indexed validatorAddress,
+            uint256 amount,
+            uint256 newShares
+        );
+    ```
+
+- `Unbond`
+
+    Unbond defines an Event emitted when a given amount
+    of tokens are unbonded from the validator address to the delegator address
+
+    ```solidity
+    event Unbond(
+            address indexed delegatorAddress,
+            string indexed validatorAddress,
+            uint256 amount,
+            uint256 completionTime
+        );
+    ```
+
+- `Redelegate`
+
+    Redelegate defines an Event emitted when a given amount
+    of tokens are redelegated from the source validator address to the destination validator address
+
+    ```solidity
+    event Redelegate(
+            address indexed delegatorAddress,
+            string indexed validatorSrcAddress,
+            string indexed validatorDstAddress,
+            uint256 amount,
+            uint256 completionTime
+        );
+    ```
+
+- `CancelUnbondingDelegation`
+
+    CancelUnbondingDelegation defines an Event emitted when
+    a given amount of tokens that are in the process of unbonding
+    from the validator address are bonded again
+
+    ```solidity
+    event CancelUnbondingDelegation(
+            address indexed delegatorAddress,
+            string indexed validatorAddress,
+            uint256 amount,
+            uint256 creationHeight
+        );
+    ```
+
+## Interact with the Solidity Interface
+
+Below are some examples of how to interact with this Solidity interface from your smart contracts.
+
+Make sure to import the precompiled interface, e.g.:
+
+```solidity
+import "https://github.com/evmos/extensions/blob/main/precompiles/stateful/Staking.sol";
+```
+
+### Grant approval for the desired messages
+
+See below a function that grants approval to the smart contract to send all `x/staking` module messages
+on behalf of the sender account. In this case,
+the allowance amount is the maximum amount possible.
+You can tweak this function to approve only the desired messages and amounts.
+
+```solidity
+string[] private stakingMethods = [
+    MSG_DELEGATE,
+    MSG_UNDELEGATE,
+    MSG_REDELEGATE,
+    MSG_CANCEL_UNDELEGATION
+];
+
+/// @dev 批准此智能合约代表交易签名者执行所有质押交易，使用最大数量的代币。
+/// @dev 这将为给定的方法创建一个 Cosmos 授权授予。
+/// @dev 这会触发一个 Approval 事件。
+function approveAllStakingMethodsWithMaxAmount() public {
+    bool success = STAKING_CONTRACT.approve(
+        address(this),
+        type(uint256).max,
+        stakingMethods
+    );
+    require(success, "Failed to approve staking methods");
+}
+```
+
+### Delegate to a validator
+
+The `stakeTokens` function allows the transaction sender to delegate the specified amount to his/her favorite validator.
+Keep in mind that, for this transaction to be successful, the user should have approved the `MSG_DELEGATE` previously
+(see the `approveAllStakingMethodsWithMaxAmount` defined in the code snippet above as an example).
+This function returns the completion time of the staking transaction and emits a `Delegate` event.
+
+```solidity
+/// @dev 质押给定数量的代币。返回质押交易的完成时间。
+/// @dev 这会触发一个 Delegate 事件。
+/// @param _validatorAddr 验证人的地址。
+/// @param _amount 要在 evmos 中质押的代币数量。
+/// @return success 操作是否成功的布尔值。
+function stakeTokens(
+    string memory _validatorAddr,
+    uint256 _amount
+) public returns (bool success) {
+    return STAKING_CONTRACT.delegate(msg.sender, _validatorAddr, _amount);
+}
+```
+
+### Undelegate from a validator
+
+The `unstakeTokens` function allows a user to unstake a given amount of tokens.
+It returns the completion time of the unstaking transaction and emits an `Undelegate` event.
+
+```solidity
+/// @dev 解除质押给定数量的代币。返回解除质押交易的完成时间。
+/// @dev 这会触发一个 Undelegate 事件。
+/// @param _validatorAddr 验证人的地址。
+/// @param _amount 要在 evmos 中解除质押的代币数量。
+/// @return completionTime 解除质押交易的完成时间。
+function unstakeTokens(
+    string memory _validatorAddr,
+    uint256 _amount
+) public returns (int64 completionTime) {
+    return STAKING_CONTRACT.undelegate(msg.sender, _validatorAddr, _amount);
+}
+```
+
+### Redelegate to another validator
+
+With the `redelegateTokens` function, a user can redelegate a given amount of tokens.
+It returns the completion time of the redelegate transaction and emits a `Redelegate` event.
+
+```solidity
+/// @dev 重新委托给定数量的代币。返回重新委托交易的完成时间。
+/// @dev 这会触发一个 Redelegate 事件。
+/// @param _validatorSrcAddr 源验证人的地址。
+/// @param _validatorDstAddr 目标验证人的地址。
+/// @param _amount 要在 evmos 中重新委托的代币数量。
+/// @return completionTime 重新委托交易的完成时间。
+function redelegateTokens(
+    string memory _validatorSrcAddr,
+    string memory _validatorDstAddr,
+    uint256 _amount
+) public returns (int64 completionTime) {
+    return
+        STAKING_CONTRACT.redelegate(
+            msg.sender,
+            _validatorSrcAddr,
+            _validatorDstAddr,
+            _amount
+        );
+}
+```
+
+### Cancel unbonding from a validator
+
+With the `cancelUnbondingDelegation` function, a user can cancel an unbonding delegation.
+This function returns the completion time of the unbonding delegation cancellation transaction
+and emits a `CancelUnbondingDelegation` event.
+
+```solidity
+/// @dev 取消解绑委托。返回取消解绑委托交易的完成时间。
+/// @dev 这会触发一个 CancelUnbondingDelegation 事件。
+/// @param _validatorAddr 验证人的地址。
+/// @param _amount 要在 evmos 中取消解绑委托的代币数量。
+/// @param _creationHeight 解绑委托的创建高度。
+function cancelUnbondingDelegation(
+    string memory _validatorAddr,
+    uint256 _amount,
+    uint256 _creationHeight
+) public returns (bool success) {
+    return
+        STAKING_CONTRACT.cancelUnbondingDelegation(
+            msg.sender,
+            _validatorAddr,
+            _amount,
+            _creationHeight
+        );
+}
+```
+
+### Queries
+
+Similarly to transactions, smart contracts can use query methods.
+To use these methods, there is no need for authorization, as these are read-only methods.
+Examples of this are these `getDelegation` and `getUnbondingDelegation`
+functions that return the information for the specified validator address.
+
+```solidity
+/// @dev 返回消息发送者对于给定验证人的委托信息。
+/// @param _validatorAddr 验证人的地址。
+/// @return shares 和 balance。消息发送者对于给定验证人的委托信息。
+function getDelegation(
+    string memory _validatorAddr
+) public view returns (uint256 shares, Coin memory balance) {
+    return STAKING_CONTRACT.delegation(msg.sender, _validatorAddr);
+}
+
+/// @dev 返回消息发送者对于给定验证人的解绑委托信息。
+/// @param _validatorAddr 验证人的地址。
+/// @return entries 消息发送者对于给定验证人的解绑委托条目。
+function getUnbondingDelegation(
+    string memory _validatorAddr
+) public view returns (UnbondingDelegationEntry[] memory entries) {
+    return STAKING_CONTRACT.unbondingDelegation(msg.sender, _validatorAddr);
+}
+```
+
+Please paste the Markdown content here.
+
+
+---
+sidebar_position: 3
+---
+
 # Staking
 
 ## Solidity Interface & ABI

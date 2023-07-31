@@ -3,6 +3,221 @@ sidebar_position: 4
 slug: 'ledger'
 ---
 
+# 钱包
+
+Ledger提供了一种硬件钱包来保存用户的私钥。
+
+## 检查清单
+
+- ✅ [Ledger设备](https://shop.ledger.com/)
+- ✅ 已安装[Ledger Live](https://www.ledger.com/ledger-live)
+- ✅ 已安装[Metamask](https://metamask.io)
+- ✅ 已安装Ethereum Ledger应用
+- ✅ 最新版本（固件和Ethereum应用）
+
+## 介绍
+
+[Ledger](https://www.ledger.com/)的硬件钱包是用于离线存储私钥的加密货币钱包。
+
+> “硬件钱包是一种离线存储形式。硬件钱包是一种加密货币钱包，它将用户的私钥（用于授权区块链网络上的出站交易的关键信息）存储在安全的硬件设备中。”
+> [Investopedia](https://www.investopedia.com/terms/l/ledger-wallet.asp)
+
+## 安装
+
+## Ethereum Ledger应用
+
+如果您想连接到Evmos主网和Evmos测试网，可以使用Ledger Live上的Ethereum Ledger应用，并设置链ID。
+
+首先，按照以下说明安装Ethereum Ledger应用：
+
+1. 在您的桌面上打开Ledger Live应用
+2. 从菜单中选择**Manager**
+3. 连接并解锁您的设备（必须在安装之前完成）
+4. 在**应用目录**中搜索`Ethereum (ETH)`，然后点击**安装**。您的Ledger设备将显示**处理中**，安装完成后，该应用将出现在您的Ledger设备上
+
+在Ledger Live应用中，您应该在**Manager**页面的**已安装应用**选项卡下看到Ethereum应用。安装成功后，您可以关闭Ledger Live。
+
+### 链ID
+
+在下表中，您可以找到与Ethereum Ledger应用一起使用的链ID列表。
+
+| 网络         | EIP155链ID |
+| ------------- | --------------- |
+| Evmos主网 | `9001`          |
+| Evmos测试网 | `9000`          |
+
+## 导入您的Ledger账户
+
+### Metamask
+
+现在您已经在Ledger Live上安装了应用，您可以将您的Ledger设备连接到计算机上，并使用您的PIN码解锁它，然后打开Ethereum应用。
+
+:::tip
+请按照我们的[Metamask指南](./metamask)将Evmos Mainnet和Testnet添加到您的设置中
+:::
+
+现在，您可以通过以下步骤将您的Ledger账户导入到MetaMask中：
+
+1. 点击连接硬件钱包
+
+![mm1.png](/img/mm1.png)
+
+2. 选择Ledger硬件钱包
+
+![mm2.png](/img/mm2.png)
+
+3. 选择您连接的Ledger设备
+
+![mm4.png](/img/mm4.png)
+
+4. 导入您想要使用的十六进制地址
+
+![mm3.png](/img/mm3.png)
+
+### Keplr
+
+请参考[Keplr钱包](./keplr)设置Ledger支持。
+
+### Evmos CLI
+
+要在Evmos CLI中使用您的Ledger，请先将设备连接到计算机，使用您的PIN解锁它，并打开Ethereum应用程序。
+
+然后，使用`keys add`命令将您的Ledger连接到CLI，并为您的设备选择一个名称：
+
+```
+evmosd keys add NAME --ledger
+```
+
+**示例：**
+
+```
+evmosd keys add myledger --ledger
+
+- address: evmos1hnmrdr0jc2ve3ycxft0gcjjtrdkncpmmkeamf9
+  name: myledger
+  pubkey: '{"@type":"/ethermint.crypto.v1.ethsecp256k1.PubKey","key":"A19Ty8NGmXQj/oQ+LubST9eDIhEACmWXW6gdU8h60eXI"}'
+  type: ledger
+```
+
+要签署任何交易，只需在命令的末尾添加`--from myledger`，以指示使用Ledger账户对消息进行身份验证：
+
+**示例：**
+
+```
+evmosd tx bank send myledger evmos1hnmrdr0jc2ve3ycxft0gcjjtrdkncpmmkeamf9 100000aevmos --fees 2000aevmos --from myledger
+```
+
+现在，您可以像通常与CLI交互一样使用您的Ledger。
+
+## EIP712签名
+
+为了使用Ledger硬件钱包签署Cosmos交易（质押、对提案投票、IBC转账），我们实现了EIP712。
+
+EIP712意味着签名者将为类似于Cosmos交易的JSON表示形式生成一个签名，并将该签名包含在Cosmos交易中。
+
+### 使用Evmos.me进行Cosmos交易的步骤
+
+1. **获取您的地址的两种编码方式**
+
+在将Ledger钱包连接到MetaMask并连接到[https://evmos.me](https://evmos.me)网页后，它将显示我们的钱包以`bech32`和`hex`表示的格式，我们需要这些值来确保我们要签名的消息是正确的。
+
+![addresses.png](/img/addresses.png)
+
+2. **创建一个Cosmos交易**
+
+在这个例子中，我们将创建一个简单的消息，将代币发送给一个收件人*。*
+
+![msgsend.png](/img/msgsend.png)
+
+点击`发送币`后，Metamask会要求我们签署输入的消息
+
+3. **使用Metamask和Ledger签名**
+
+![mm5.png](/img/mm5.png)
+
+您可以查看要签名的完整消息
+
+![eipmessage.png](/img/eipmessage.png)
+
+4. **在签名之前验证数据！**
+
+- `feePayer`：表示签署消息的钱包。因此，如果与您的钱包不匹配，则您的交易将无效。
+- `fee`：发送交易所需支付的金额。
+- `gas`：此交易可以使用的最大燃气量（也称为燃气限制）。
+- `memo`：交易备注或注释。
+- `msgs`：这是cosmos交易的内容，在此示例中，我们需要确保我们使用的是MsgSend，并且*to_address*是我们要发送资金的地址。此外，我们可以验证我们实际上是向该钱包发送了*10000aevmos*。
+
+### 使用Ledger签名
+
+如果您连接了Ledger到Metamask，您需要使用它来签署消息。
+
+Ledger设备将在要求您签署交易之前显示域哈希和消息哈希。
+
+![hw_01.jpg](/img/hw_01.jpg)
+
+![hw_02.jpg](/img/hw_02.jpg)
+
+![hw_03.jpg](/img/hw_03.jpg)
+
+![hw_04.jpg](/img/hw_04.jpg)
+
+**广播交易**
+
+在签署消息后，需要将该签名添加到cosmos交易中并广播到网络中。
+
+这一步应该由生成消息的同一服务自动完成，在本例中，[evmos.me](http://evmos.me)将为您广播交易。
+
+![txsent.png](/img/txsent.png)
+
+### 常见错误
+
+- 确保已安装以太坊Ledger应用程序。目前不支持在Evmos链上使用Cosmos Ledger应用程序（请参阅[FAQ](#faq)）。
+- 确保您在Ledger Ethereum应用程序上创建了至少一个以太坊地址。
+- 确保Ledger设备已解锁，并在开始导入过程之前打开了Ledger Ethereum应用程序。
+
+### 已知问题
+
+- 在导入钱包时，显示的货币单位为`ETH`，因为我们使用的是以太坊应用程序。
+- 如果您已正确配置Metamask，则扩展程序上的余额将显示为`EVMOS`，但在Ledger设备上将显示为`ETH`。
+
+:::warning
+**重要提示：** 在签署任何交易之前，请确保您连接到正确的网络！
+:::
+
+## 常见问题
+
+<details>
+
+<summary><b>如何使用Ledger生成Cosmos `secp256k1`密钥？</b></summary>
+
+在Evmos上，不支持使用Ledger生成Cosmos `secp256k1`密钥。只能使用Ledger生成以太坊密钥（`eth_secp256k1`）。
+
+</details>
+
+
+<details>
+
+<summary><b>我的Ledger无法连接或在CLI上签名</b></summary>
+
+Ledger与CLI的连接可能因多种原因而失败。请确保关闭使用Ledger的任何其他应用程序（如Ledger Live或Metamask），解锁Ledger，并打开以太坊应用程序。如果这样做不起作用，断开并重新连接设备通常可以解决问题。
+
+</details>
+
+
+<details>
+
+<summary><b>我无法在Cosmos Ledger应用程序中使用Metamask或Keplr</b></summary>
+
+由于Evmos仅支持以太坊密钥，并使用与以太坊相同的HD（层次确定性）钱包派生路径，因此Cosmos Ledger应用程序无法用于签署cosmos交易。使用Cosmos Ledger应用程序的Keplr仅适用于派生路径`m/44'/118'/0'/0`（Cosmos），而不适用于派生路径`m/44'/60'/0'/0`（以太坊）。在您的Ledger硬件设备上，您可以随时切换到以太坊以重新连接到Keplr Evmos网络。
+
+</details>
+
+
+---
+sidebar_position: 4
+slug: 'ledger'
+---
+
 # Ledger
 
 Ledger offers a hardware wallet to hold user's private keys.

@@ -2,6 +2,251 @@
 sidebar_position: 1
 ---
 
+# 配置
+
+以下页面将指导您配置节点和客户端。
+节点用于运行区块链网络，生成区块并验证交易。
+客户端用作与区块链网络交互的网关，可发送交易和查询状态。
+此外，我们还将介绍[运行JSON-RPC服务器](#running-the-json-rpc-server)。
+
+这些配置可能会影响节点的性能、安全性和功能。
+因此，了解和正确配置节点和客户端至关重要。
+
+## 配置和数据目录
+
+默认情况下，配置和数据存储在位于`~/.evmosd`目录的文件夹中。
+您可以使用`--home`标志轻松更改默认目录。重要的是要注意，
+您可以拥有多个主目录，每个主目录代表一个不同的区块链。
+
+```bash
+.                                   # ~/.evmosd
+  ├── data/                           # Contains the databases used by the node.
+  └── config/
+      ├── app.toml                   # Application-related configuration file.
+      ├── config.toml                # Tendermint-related configuration file.
+      ├── genesis.json               # The genesis file.
+      ├── node_key.json              # Private key to use for node authentication in the p2p protocol.
+      └── priv_validator_key.json    # Private key to use as a validator in the consensus protocol.
+```
+
+要指定`evmosd`的配置和数据存储目录，可以使用全局标志`--home <directory>`进行更新。
+
+## 节点配置
+
+Cosmos SDK会自动生成两个配置文件，位于`~/.evmosd/config`目录下：
+
+- `config.toml`：用于配置Tendermint，请参阅[Tendermint文档](https://docs.tendermint.com/v0.34/tendermint-core/configuration.html)了解更多信息，
+- `app.toml`：由Cosmos SDK生成，用于配置您的应用程序，例如状态修剪策略、遥测、gRPC和REST服务器配置、状态同步、JSON-RPC等。
+
+这两个文件都有详细的注释，请直接参考它们来调整您的节点。
+
+一个要调整的示例配置是`app.toml`中的`minimum-gas-prices`字段，它定义了验证节点愿意接受的处理交易的最低金额。这是一种反垃圾邮件机制，它将拒绝低于最低燃气价格的传入交易。
+
+如果该字段为空，请确保使用某个值编辑该字段，例如`10token`，否则节点将在启动时停止。
+
+```toml
+ # The minimum gas prices a validator is willing to accept for processing a
+ # transaction. A transaction's fees must meet the minimum of any denomination
+ # specified in this config (e.g. 0.25token1;0.0001token2).
+ minimum-gas-prices = "0aevmos"
+```
+
+### 状态修剪
+
+有四种状态修剪策略。这些策略仅适用于状态，不适用于块存储。
+要设置修剪，请调整 `~/.evmosd/config/app.toml` 文件中的 `pruning` 参数。
+以下是可用的状态修剪设置：
+
+- `everything`：修剪除当前状态之外的所有保存状态。
+- `nothing`：保存所有状态，不删除任何状态。
+- `default`：保存最近的 100 个状态和每 10,000 个块的状态。
+- `custom`：使用 `pruning-keep-recent`、`pruning-keep-every` 和 `pruning-interval` 参数指定修剪设置。
+
+默认情况下，每个节点都处于 `default` 模式，这是大多数环境的推荐设置。
+如果您想更改节点的修剪策略，则必须在节点初始化时进行更改。在启动 `evmos` 时传递一个标志将始终覆盖 `app.toml` 文件中的设置，如果您想将节点更改为 `everything` 模式，则可以在调用 `evmosd start` 时传递 `--pruning everything` 标志。
+
+:::warning
+**重要**：
+当您修剪状态时，您将无法查询不在您存储中的高度。
+:::
+
+## 客户端配置
+
+我们可以使用 `evmosd config` 命令查看默认的客户端配置设置：
+
+```bash
+evmosd config
+{
+ "chain-id": "",
+ "keyring-backend": "os",
+ "output": "text",
+ "node": "tcp://localhost:26657",
+ "broadcast-mode": "sync"
+}
+```
+
+我们可以根据自己的选择对默认设置进行更改，这样用户就可以在一开始就设置好配置，以便之后使用相同的配置。
+
+例如，我们可以通过以下方式将链标识符从空白名称更改为 `evmos_9000-4`：
+
+```bash
+evmosd config "chain-id" evmos_9000-4
+evmosd config
+{
+ "chain-id": "evmos_9000-4",
+ "keyring-backend": "os",
+ "output": "text",
+ "node": "tcp://localhost:26657",
+ "broadcast-mode": "sync"
+}
+```
+
+其他值可以以相同的方式更改。
+
+或者，我们可以直接在一个地方对配置值进行更改，即 `client.toml`。它位于我们安装 evmos 的文件夹中的 `.evmos/config/client.toml` 路径下：
+
+```toml
+############################################################################
+### Client Configuration ###
+
+############################################################################
+
+# The network chain ID
+
+chain-id = "evmos_9000-4"
+
+# The keyring's backend, where the keys are stored (os|file|kwallet|pass|test|memory)
+
+keyring-backend = "os"
+
+# CLI output format (text|json)
+
+output = "number"
+
+# <host>:<port> to Tendermint RPC interface for this chain
+
+node = "tcp://localhost:26657"
+
+# Transaction broadcasting mode (sync|async|block)
+
+broadcast-mode = "sync"
+```
+
+在 `client.toml` 中进行必要的更改后，保存。例如，如果我们直接将链标识符从 <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-2" /> 更改为 `evmostest_9000-1`，并输出为数字，它将立即更改，如下所示。
+
+```bash
+evmosd config
+{
+ "chain-id": "evmostest_9000-4",
+ "keyring-backend": "os",
+ "output": "number",
+ "node": "tcp://localhost:26657",
+ "broadcast-mode": "sync"
+}
+```
+
+## 运行 JSON-RPC 服务器
+
+本节介绍启用 JSON-RPC 服务器的步骤。
+Evmos 支持通过 HTTP 和 WebSocket 提供 JSON-RPC。
+在要求方面，我们建议使用至少 8 核 CPU 和 64GB RAM 的服务器。
+您必须在防火墙上打开端口 8545 和 8546。
+
+:::tip
+**重要提示**：除非您的节点本地存储了整个区块链的副本，否则无法使用所有 JSON RPC 方法。您需要我们网络的存档/快照吗？请转到[此部分](./../../develop/api/snapshots-archives)。
+:::
+
+### 启用服务器
+
+要启用 RPC 服务器，请使用以下标志（默认设置为 true）。
+
+```bash
+evmosd start --json-rpc.enable
+```
+
+### 定义命名空间
+
+`Eth`、`Net` 和 `Web3` 命名空间默认已启用，但对于 JSON-RPC，您需要添加更多命名空间。
+要启用其他命名空间，请编辑 `app.toml` 文件。
+
+```toml
+# API defines a list of JSON-RPC namespaces that should be enabled
+# Example: "eth,txpool,personal,net,debug,web3"
+api = "eth,net,web3,txpool,debug,personal"
+```
+
+### 设置 Gas 上限
+
+`eth_call` 和 `eth_estimateGas` 为 DoS 保护定义了全局 Gas 上限。您可以在 `app.toml` 中传递自定义值来覆盖默认的 Gas 上限值 25,000,000：
+
+```toml
+# GasCap sets a cap on gas that can be used in eth_call/estimateGas (0=infinite). Default: 25,000,000.
+gas-cap = 25000000
+```
+
+### CORS
+
+如果从浏览器访问 RPC，需要启用 CORS 并设置适当的域。否则，JavaScript 调用将受到同源策略的限制，请求将失败。
+
+CORS 设置可以从 `app.toml` 中更新。
+
+```toml
+###############################################################################
+###                           API Configuration                             ###
+###############################################################################
+
+[api]
+
+# ...
+
+# EnableUnsafeCORS defines if CORS should be enabled (unsafe - use it at your own risk).
+enabled-unsafe-cors = true # default false
+```
+
+### 剪枝
+
+为了使所有方法正常工作，您的节点必须是存档节点（本地存储了整个区块链的副本）。剪枝必须被禁用。
+剪枝设置可以从 `app.toml` 中更新。
+
+```toml
+###############################################################################
+###                           Base Configuration                            ###
+###############################################################################
+
+# The minimum gas prices a validator is willing to accept for processing a
+# transaction. A transaction's fees must meet the minimum of any denomination
+# specified in this config (e.g. 0.25token1;0.0001token2).
+
+# ...
+
+# default: the last 100 states are kept in addition to every 500th state; pruning at 10 block intervals
+# nothing: all historic states will be saved, nothing will be deleted (i.e. archiving node)
+# everything: all saved states will be deleted, storing only the current state; pruning at 10 block intervals
+# custom: allow pruning options to be manually specified through 'pruning-keep-recent', 'pruning-keep-every', >
+pruning = "nothing"
+pruning-keep-recent = "0"
+pruning-keep-every = "0"
+pruning-interval = "0"
+```
+
+### WebSocket 服务器
+
+WebSocket 是一种双向传输协议。Websocket 连接由客户端和服务器维护，直到其中一个显式终止连接。大多数现代浏览器都支持 WebSocket，这意味着它具有良好的工具支持。
+
+因为WebSocket是双向的，服务器可以向客户端推送事件。这使得WebSocket成为涉及事件订阅的用例的良好选择。
+WebSocket的另一个好处是，在握手过程之后，单个消息的开销很低，适合发送大量请求。
+WebSocket服务器可以通过`app.toml`文件启用。
+
+```toml
+# Address defines the EVM WebSocket server address to bind to.
+ws-address = "0.0.0.0:8546"
+```
+
+
+---
+sidebar_position: 1
+---
+
 # Configuration
 
 The following page will guide you through the configuration of a node and a client.

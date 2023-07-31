@@ -2,6 +2,231 @@
 sidebar_position: 5
 ---
 
+# IBC 转账
+
+## Solidity 接口和 ABI
+
+`ICS20.sol` - 之前被称为 `IBCTransfer.sol` - 是一个接口，通过它 Solidity 合约可以与 Evmos 链上的 IBC 协议进行交互。
+对于开发者来说，这非常方便，因为他们不需要了解 [IBC-go](https://ibc.cosmos.network/) 中 `transfer` 模块的具体实现细节。
+相反，他们可以使用他们熟悉的以太坊接口进行 IBC 转账。
+在 [evmos/extensions 仓库](https://github.com/evmos/extensions/tree/main/examples/simple-ibc-transfer) 中可以找到一个简单实现的示例。
+
+### 接口 `ICS20.sol`
+
+在 [evmos/extensions 仓库中找到 Solidity 接口](https://github.com/evmos/extensions/blob/main/precompiles/stateful/ICS20.sol)。
+
+### ABI
+
+在 [evmos/extensions 仓库中找到 ABI](https://github.com/evmos/extensions/blob/main/precompiles/abi/ics20.json)。
+
+## 交易
+
+- `approve`
+
+    ```solidity
+    /// @dev 批准特定数量的代币进行 IBC 转账。
+    /// @param spender 将要花费资金的地址。
+    /// @param allocations 授权的分配。
+    function approve(
+        address spender,
+        Allocation[] calldata allocations
+    ) external returns (bool approved);
+    ```
+
+- `revoke`
+
+    ```solidity
+    /// @dev 撤销特定地址的 IBC 转账授权。
+    /// @param spender 将要花费资金的地址。
+    function revoke(address spender) external returns (bool revoked);
+    ```
+
+- `increaseAllowance`
+  
+    ```solidity
+    /// @dev 增加给定地址的授权金额，并为 IBC 转账方法提供 IBC 连接。
+    /// @param spender 将要花费资金的地址。
+    /// @param sourcePort IBC 交易的源端口。
+    /// @param sourceChannel IBC 交易的源通道。
+    /// @param denom 转账代币的单位。
+    /// @param amount 要花费的代币数量。
+    function increaseAllowance(
+        address spender,
+        string calldata sourcePort,
+        string calldata sourceChannel,
+        string calldata denom,
+        uint256 amount
+    ) external returns (bool approved);
+    ```
+
+- `decreaseAllowance`
+
+  ```solidity
+  /// @dev 减少给定spender的特定数量的令牌的授权额度，用于IBC转账方法。
+  /// @param spender 将花费资金的地址。
+  /// @param sourcePort IBC交易的源端口。
+  /// @param sourceChannel IBC交易的源通道。
+  /// @param denom 转移的令牌的面额。
+  /// @param amount 要花费的令牌数量。
+  function decreaseAllowance(
+      address spender,
+      string calldata sourcePort,
+      string calldata sourceChannel,
+      string calldata denom,
+      uint256 amount
+  ) external returns (bool approved);
+  ```
+
+- `transfer`
+
+  ```solidity
+  /// @dev Transfer定义了执行IBC转账的方法。
+  /// @param sourcePort 验证者的地址
+  /// @param sourceChannel 验证者的地址
+  /// @param denom 要转账给接收者的Coin的面额
+  /// @param amount 要转账给接收者的Coin的数量
+  /// @param sender 发送者的十六进制地址
+  /// @param receiver 接收者的bech32地址
+  /// @param timeoutHeight 接收者的bech32地址
+  /// @param timeoutTimestamp 接收者的bech32地址
+  /// @param memo 接收者的bech32地址
+  function transfer(
+      string memory sourcePort,
+      string memory sourceChannel,
+      string memory denom,
+      uint256 amount,
+      address sender,
+      string memory receiver,
+      Height memory timeoutHeight,
+      uint64 timeoutTimestamp,
+      string memory memo
+  ) external returns (uint64 nextSequence);
+  ```
+
+## 查询
+
+- `denomTrace`
+
+  ```solidity
+  /// @dev DenomTrace定义了返回denom跟踪的方法。
+  function denomTrace(
+      string memory hash
+  ) external returns (DenomTrace memory denomTrace);
+  ```
+
+- `denomTraces`
+
+  ```solidity
+  /// @dev DenomTraces定义了返回所有denom跟踪的方法。
+  function denomTraces(
+      PageRequest memory pageRequest
+  )
+      external
+      returns (
+          DenomTrace[] memory denomTraces,
+          PageResponse memory pageResponse
+      );
+  ```
+
+- `denomHash`
+
+    ```solidity
+    /// @dev DenomHash定义了一种返回货币追踪信息哈希的方法。
+    function denomHash(
+        string memory trace
+    ) external returns (string memory hash);
+    ```
+
+- `allowance`
+
+    ```solidity
+    /// @dev 返回spender在IBC转账中被owner允许转账的剩余代币数量。默认情况下，这是一个空数组。
+    /// @param owner 拥有代币的账户地址。
+    /// @param spender 能够转账代币的账户地址。
+    /// @return allocations 对应源端口和通道的剩余可转账金额。
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (Allocation[] memory allocations);
+    ```
+
+## Events
+
+每个交易都会触发相应的事件。它们是：
+
+- `IBCTransfer`
+
+    ```solidity
+    /// @dev 当执行ICS-20转账时触发。
+    /// @param sender 发送者的地址。
+    /// @param receiver 接收者的地址。
+    /// @param sourcePort IBC交易的源端口。
+    /// @param sourceChannel IBC交易的源通道。
+    /// @param denom 转账的代币名称。
+    /// @param amount 转账的代币数量。
+    /// @param memo IBC交易的备注。
+    event IBCTransfer(
+        address indexed sender,
+        string indexed receiver,
+        string sourcePort,
+        string sourceChannel,
+        string denom,
+        uint256 amount,
+        string memo
+    );
+    ```
+
+- `IBCTransferAuthorization`
+
+    ```solidity
+    /// @dev 当授予ICS-20转账授权时触发。
+    /// @param grantee 受让人的地址。
+    /// @param granter 授权人的地址。
+    /// @param sourcePort IBC交易的源端口。
+    /// @param sourceChannel IBC交易的源通道。
+    /// @param spendLimit 授权的代币数量。
+    event IBCTransferAuthorization(
+        address indexed grantee,
+        address indexed granter,
+        string sourcePort,
+        string sourceChannel,
+        Coin[] spendLimit
+    );
+    ```
+
+- `RevokeIBCTransferAuthorization`
+
+    ```solidity
+    /// @dev 当所有者撤销授权者的津贴时，触发此事件。
+    /// @param owner 代币的所有者。
+    /// @param spender 将花费资金的地址。
+    event 撤销IBCTransfer授权(
+        address indexed owner,
+        address indexed spender
+    );
+    ```
+
+- `AllowanceChange`
+
+    ```solidity
+    /// @dev 当通过调用减少或增加津贴方法来更改津贴的授权时，触发此事件。values字段指定新的津贴，methods字段保存了设置授权的方法的信息。
+    /// @param owner 代币的所有者。
+    /// @param spender 将花费资金的地址。
+    /// @param methods 设置授权的方法的消息类型URL。
+    /// @param values 批准的代币数量。
+    event 津贴更改(
+        address indexed owner,
+        address indexed spender,
+        string[] methods,
+        uint256[] values
+    );
+    ```
+
+
+---
+sidebar_position: 5
+---
+
 # IBC Transfer
 
 ## Solidity Interface & ABI

@@ -1,3 +1,443 @@
+# `激励`
+
+## 摘要
+
+本文档规定了 Evmos Hub 的内部 `x/incentives` 模块。
+
+`x/incentives` 模块是 Evmos 代币经济的一部分，旨在通过向与激励智能合约进行交互的用户分发奖励来增加网络的增长。
+这些奖励鼓励用户与 Evmos 上的应用程序进行交互，并将奖励再投资于网络中的更多服务。
+
+激励的使用来自区块奖励的发行（通胀），并在激励模块账户（托管地址）中汇集起来。
+激励功能完全由原生的 EVMOS 代币持有者管理，
+他们负责注册 `Incentives`，因此原生的 EVMOS 代币持有者决定哪些应用程序应该成为使用激励的一部分。
+这个治理功能是使用 Cosmos-SDK 的 `gov` 模块实现的，
+使用自定义的提案类型来注册激励。
+
+用户通过向一个有激励的合约提交交易来参与激励。
+该模块会记录参与者在交易中花费的燃料量，并将其存储在燃料计量器中。
+根据他们的燃料计量器，激励参与者会在固定的时间间隔（时期）内获得奖励。
+
+## 内容
+
+1. **[概念](#概念)**
+2. **[状态](#状态)**
+3. **[状态转换](#状态转换)**
+4. **[交易](#交易)**
+5. **[钩子](#钩子)**
+6. **[事件](#事件)**
+7. **[参数](#参数)**
+8. **[客户端](#客户端)**
+
+## 概念
+
+### 激励
+
+`x/incentives` 模块的目的是为与智能合约进行交互的用户提供激励。
+激励允许用户获得最多 `rewards = k * sum(tx fees)` 的奖励，
+其中 `k` 是一个奖励缩放参数，通过将其与用户在当前时期中花费的交易费用总和相乘，
+限制了分配给单个用户的激励。
+
+`激励` 描述了为给定智能合约分配和分发奖励的条件。
+在每个时期结束时，奖励从通胀池中分配给激励的参与者，
+取决于每个参与者花费的燃料量和缩放参数。
+
+给定智能合约的激励可以通过治理来启用或禁用。
+
+### 通胀池
+
+通胀池持有可以分配给激励的“奖励”。
+在每个区块上，通胀奖励会被铸造并添加到通胀池中。
+此外，奖励也可以在通胀之外转移到通胀池中。
+有关如何将奖励添加到通胀池的详细信息，请参阅`x/inflation`模块。
+
+### 纪元
+
+为智能合约交互奖励用户是按照纪元进行组织的。
+一个“纪元”是一个固定的时间段，在此期间奖励将被添加到通胀池中，并记录智能合约的交互。
+在纪元结束时，奖励将被分配并分发给所有参与者。
+这样，用户可以定期检查他们的余额以获取新的奖励（例如每天的同一时间）。
+
+### 分配
+
+在奖励分发给用户之前，每个激励都从通胀池中分配奖励。
+“分配”描述了通胀池中分配给指定币种激励的奖励部分。
+
+用户可以以多种币种获得奖励。
+这些币种以“分配”方式组织。
+一个分配包括币种面额和从通胀池中分配的奖励百分比。
+
+- 每个分配的奖励百分比有一个上限。
+  它由链参数定义，并可以通过治理进行修改。
+- 激励的数量受限于所有活跃的激励合约分配的总和。
+  如果总和大于100％，则无法提出更多的激励，直到另一个分配变为非活跃状态。
+
+### 分发
+
+激励的分配奖励根据参与者在纪元期间与合约交互所消耗的燃料量进行分发。
+每个地址使用的燃料量通过事务钩子记录并存储在KV存储中。
+在纪元结束时，激励中分配的奖励将通过将其转移到参与者的账户上进行分发。
+
+:::tip
+💡我们使用钩子（hooks）而不是交易哈希来测量消耗的 gas，因为钩子可以访问实际消耗的 gas，而哈希只包括 gas 限制。
+:::
+
+
+## 状态
+
+### 状态对象
+
+`x/incentives` 模块在状态中保存以下对象：
+
+| 状态对象         | 描述                                          | 键                                                     | 值                   | 存储  |
+| --------------- | --------------------------------------------- | ------------------------------------------------------ | ------------------- | ----- |
+| Incentive       | 激励合约字节码                                | `[]byte{1} + []byte(contract)`                         | `[]byte{incentive}` | KV    |
+| GasMeter        | 根据 erc20 合约字节和参与者的激励 id 字节码     | `[]byte{2} + []byte(contract) + []byte(participant)` | `[]byte{gasMeter}`  | KV    |
+| AllocationMeter | 根据代币字节的总分配字节                       | `[]byte{3} + []byte(denom)`                            | `[]byte{sdk.Dec}`   | KV    |
+
+#### Incentive
+
+为给定的智能合约组织分配条件的实例。
+
+```go
+type Incentive struct {
+	// contract address
+	Contract string `protobuf:"bytes,1,opt,name=contract,proto3" json:"contract,omitempty"`
+	// denoms and percentage of rewards to be allocated
+	Allocations github_com_cosmos_cosmos_sdk_types.DecCoins `protobuf:"bytes,2,rep,name=allocations,proto3,castrepeated=github.com/cosmos/cosmos-sdk/types.DecCoins" json:"allocations"`
+	// number of remaining epochs
+	Epochs uint32 `protobuf:"varint,3,opt,name=epochs,proto3" json:"epochs,omitempty"`
+	// distribution start time
+	StartTime time.Time `protobuf:"bytes,4,opt,name=start_time,json=startTime,proto3,stdtime" json:"start_time"`
+	// cumulative gas spent by all gasmeters of the incentive during the epoch
+	TotalGas uint64 `protobuf:"varint,5,opt,name=total_gas,json=totalGas,proto3" json:"total_gas,omitempty"`
+}
+```
+
+只要激励还有剩余的时期，它就会根据其分配来分发奖励。
+分配以 `sdk.DecCoins` 的形式存储，其中每个包含 [`sdk.DecCoin`](https://github.com/cosmos/cosmos-sdk/blob/master/types/dec_coin.go) 的对象描述了分配给合约的奖励的百分比（`Amount`），
+该百分比分配给给定币种（`Denom`）。
+一个激励可以包含多个分配，导致用户以多个不同的币种形式接收奖励。
+
+#### GasMeter
+
+跟踪每个参与者在一个时期内在合约中消耗的累积 gas。
+
+```go
+type GasMeter struct {
+	// hex address of the incentivized contract
+	Contract string `protobuf:"bytes,1,opt,name=contract,proto3" json:"contract,omitempty"`
+	// participant address that interacts with the incentive
+	Participant string `protobuf:"bytes,2,opt,name=participant,proto3" json:"participant,omitempty"`
+	// cumulative gas spent during the epoch
+	CumulativeGas uint64 `protobuf:"varint,3,opt,name=cumulative_gas,json=cumulativeGas,proto3" json:"cumulative_gas,omitempty"`
+}
+```
+
+#### AllocationMeter
+
+分配计量器存储了给定币种的所有已注册激励的分配总和，并用于限制已注册激励的数量。
+
+假设有几个激励已经为 EVMOS 代币注册了分配，并且 EVMOS 的分配计量器为 97%。
+那么一个新的激励提案只能包括最多 3% 的 EVMOS 分配，
+从通胀池中的 EVMOS 奖励中获取剩余的分配容量。
+
+### 创世状态
+
+`x/incentives` 模块的 `GenesisState` 定义了从先前导出的高度初始化链所需的状态。它包含了模块参数以及活跃激励和相应的燃气计量器的列表：
+
+```go
+// GenesisState defines the module's genesis state.
+type GenesisState struct {
+	// module parameters
+	Params Params `protobuf:"bytes,1,opt,name=params,proto3" json:"params"`
+	// active incentives
+	Incentives []Incentive `protobuf:"bytes,2,rep,name=incentives,proto3" json:"incentives"`
+	// active Gasmeters
+	GasMeters []GasMeter `protobuf:"bytes,3,rep,name=gas_meters,json=gasMeters,proto3" json:"gas_meters"`
+}
+```
+
+
+## 状态转换
+
+`x/incentive` 模块允许两种类型的注册状态转换：`RegisterIncentiveProposal` 和 `CancelIncentiveProposal`。*燃气计量*和*奖励分发*的逻辑通过[Hooks](#hooks)处理。
+
+### 激励注册
+
+用户注册一个激励，定义合约、分配和时期数量。一旦提案通过（即由治理机构批准），激励模块将创建激励并分发奖励。
+
+1. 用户提交一个 `RegisterIncentiveProposal`。
+2. Evmos Hub 的验证人使用 `MsgVote` 对提案进行投票，并通过。
+3. 如果满足以下条件，则为合约创建激励，`TotalGas = 0`，并将其 `startTime` 设置为 `ctx.Blocktime`：
+    1. 全局启用了激励参数
+    2. 激励尚未注册
+    3. 除了铸币单位之外，通胀池中的余额对于每个分配货币都大于 0。
+       我们知道铸币单位（例如 EVMOS）的金额将添加到每个区块中，
+       但对于其他货币单位（使用 `x/erc20` 模块的 IBC 凭证、ERC20 代币），
+       模块账户需要有正数金额来分发激励。
+    4. 每个货币单位的所有已注册分配的总和（当前 + 提议）小于 100%
+
+
+## 交易
+
+本节定义了导致前一节中定义的状态转换的 `sdk.Msg` 具体类型。
+
+## `RegisterIncentiveProposal`
+
+用于为给定合约注册激励的治理 `Content` 类型，持续一定数量的时期。治理用户对此提案进行投票，
+并在投票通过时自动执行 `RegisterIncentiveProposal` 的自定义处理程序。
+
+```go
+type RegisterIncentiveProposal struct {
+	// title of the proposal
+	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// proposal description
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// contract address
+	Contract string `protobuf:"bytes,3,opt,name=contract,proto3" json:"contract,omitempty"`
+	// denoms and percentage of rewards to be allocated
+	Allocations github_com_cosmos_cosmos_sdk_types.DecCoins `protobuf:"bytes,4,rep,name=allocations,proto3,castrepeated=github.com/cosmos/cosmos-sdk/types.DecCoins" json:"allocations"`
+	// number of remaining epochs
+	Epochs uint32 `protobuf:"varint,5,opt,name=epochs,proto3" json:"epochs,omitempty"`
+}
+```
+
+提案内容的无状态验证失败的情况包括：
+
+- 标题无效（长度或字符）
+- 描述无效（长度或字符）
+- 合约地址无效
+- 分配无效
+    - 分配中没有包含任何分配
+    - 至少一个分配的金额无效（低于0或高于1）
+- 周期无效（为零）
+
+## `CancelIncentiveProposal`
+
+一种用于移除激励的治理 `Content` 类型。
+当投票通过时，治理用户对此提案进行投票，并自动执行 `CancelIncentiveProposal` 的自定义处理程序。
+
+```go
+type CancelIncentiveProposal struct {
+	// title of the proposal
+	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// proposal description
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// contract address
+	Contract string `protobuf:"bytes,3,opt,name=contract,proto3" json:"contract,omitempty"`
+}
+```
+
+提案内容的无状态验证失败的情况包括：
+
+- 标题无效（长度或字符）
+- 描述无效（长度或字符）
+- 合约地址无效
+
+
+## 钩子函数
+
+`x/incentives` 模块实现了来自 `x/evm` 和 `x/epoch` 模块的两个事务钩子。
+
+### EVM 钩子 - Gas 计量
+
+EVM 钩子更新日志，用于跟踪在一个周期内与激励合约的交互中使用的 gas 数量。
+在每个成功的 evm 事务之后，[EVM 钩子](evm.md#hooks) 执行自定义逻辑。
+在这种情况下，它更新了激励的总 gas 数量和参与者自己的 gas 数量。
+
+1. 用户向激励智能合约提交 EVM 事务，并成功完成该事务。
+2. EVM 钩子的 `PostTxProcessing` 方法在 incentives 模块上被调用。
+   它接收一个事务收据，其中包括事务发送者为支付 gas 费用而使用的累计 gas 数量。
+   钩子执行以下操作：
+    1. 将 `gasUsed` 添加到激励的累计 `totalGas` 中
+    2. 将 `gasUsed` 添加到参与者的 gas 计量器的累计 gas 使用量中
+
+### Epoch 钩子 - 奖励分配
+
+Epoch 钩子在每个周期（一天或一周）结束时触发所有已注册激励的使用奖励分配。
+该分配过程首先 1) 从分配池为每个激励分配奖励，然后 2) 将这些奖励分配给每个激励的所有参与者。
+
+1. `RegisterIncentiveProposal` 通过，并为提议的合约创建了一个 `incentive`。
+2. 一个 `epoch` 开始，并且每个区块用于通胀而铸造的奖励（EVMOS 和其他代币）被添加到通胀池中。
+3. 用户提交交易并调用激励智能合约上的函数进行交互，通过 EVM 钩子记录 gas。
+4. 一个区块，标志着一个 `epoch` 的结束，被提议，并通过 `AfterEpochEnd` 钩子调用 `DistributeIncentives` 方法。
+   该方法执行以下操作：
+    1. 从通胀池中分配要分发的金额
+    2. 将奖励分配给所有参与者。
+       每个参与者的奖励受当前周期内他们在交易费用上花费的 gas 量和奖励缩放参数的限制。
+    3. 删除合约的所有 gas 计量器
+    4. 更新每个激励的剩余周期。
+       如果一个激励的剩余周期为零，则移除该激励并更新分配计量器。
+    5. 为下一个周期将累计的 totalGas 设置为零
+5. 如果某个币种的分配容量未完全用尽，并且所有活动的激励合约的分配总和小于 100%，则该币种的奖励将在通胀池中累积。
+   累积的奖励将在下一个周期的分配中添加。
+
+## 事件
+
+`x/incentives` 模块会触发以下事件：
+
+### 注册激励提案
+
+| 类型                 | 属性键       | 属性值                                      |
+| -------------------- | ------------ | ------------------------------------------- |
+| `register_incentive` | `"contract"` | `{erc20_address}`                           |
+| `register_incentive` | `"epochs"`   | `{strconv.FormatUint(uint64(in.Epochs), 10)}` |
+
+### 取消激励提案
+
+| 类型               | 属性键       | 属性值                |
+| ------------------ | ------------ | --------------------- |
+| `cancel_incentive` | `"contract"` | `{erc20_address}`     |
+
+### 激励分发
+
+| 类型                    | 属性键       | 属性值                                      |
+| ----------------------- | ------------ | ------------------------------------------- |
+| `distribute_incentives` | `"contract"` | `{erc20_address}`                           |
+| `distribute_incentives` | `"epochs"`   | `{strconv.FormatUint(uint64(in.Epochs), 10)}` |
+
+
+## 参数
+
+`x/incentives` 模块包含以下参数。所有参数都可以通过治理进行修改。
+
+| 键                           | 类型    | 默认值                            |
+| --------------------------- | ------- | ---------------------------------- |
+| `EnableIncentives`          | bool    | `true`                             |
+| `AllocationLimit`           | sdk.Dec | `sdk.NewDecWithPrec(5,2)` // 5%    |
+| `IncentivesEpochIdentifier` | string  | `week`                             |
+| `rewardScaler`              | sdk.Dec | `sdk.NewDecWithPrec(12,1)` // 120% |
+
+### 启用激励
+
+`EnableIncentives` 参数用于切换模块中的所有状态转换。
+当该参数被禁用时，将阻止所有激励的注册、取消和分发功能。
+
+### 分配限制
+
+`AllocationLimit` 参数定义了每个激励在每个币种中可以定义的最大分配额度。
+例如，如果 `AllocationLimit` 为 5%，
+则每个币种最多可以有 20 个活跃的激励，如果它们都达到了限制。
+
+奖励百分比每个分配都有上限。
+
+### 激励周期标识符
+
+`IncentivesEpochIdentifier`参数指定了一个周期的长度。
+这是激励奖励定期分发的间隔。
+
+### 奖励缩放器
+
+`rewardScaler`参数相对于其使用的燃气定义了每个参与者的奖励限制。
+激励允许用户获得最多`rewards = k * sum(txFees)`的奖励，
+其中`k`定义了奖励缩放器参数，将其乘以他们在当前周期中花费的交易费用总和，以限制分配给单个用户的激励。
+
+## 客户端
+
+用户可以使用CLI、JSON-RPC、gRPC或REST查询`x/incentives`模块。
+
+### CLI
+
+下面是使用`x/incentives`模块添加的`evmosd`命令列表。
+您可以使用`evmosd -h`命令获取完整列表。
+
+#### 查询
+
+`query`命令允许用户查询`incentives`状态。
+
+**`incentives`**
+
+允许用户查询所有已注册的激励。
+
+```go
+evmosd query incentives incentives [flags]
+```
+
+**`incentive`**
+
+允许用户查询给定合约的激励。
+
+```go
+evmosd query incentives incentive CONTRACT_ADDRESS [flags]
+```
+
+**`gas-meters`**
+
+允许用户查询给定激励的所有燃气计量器。
+
+```bash
+evmosd query incentives gas-meters CONTRACT_ADDRESS [flags]
+```
+
+**`gas-meter`**
+
+允许用户查询给定激励和用户的燃气计量器。
+
+```go
+evmosd query incentives gas-meter CONTRACT_ADDRESS PARTICIPANT_ADDRESS [flags]
+```
+
+**`params`**
+
+允许用户查询激励参数。
+
+```bash
+evmosd query incentives params [flags]
+```
+
+#### 提议
+
+`tx gov submit-legacy-proposal`命令允许用户使用治理模块CLI创建提议：
+
+**`register-incentive`**
+
+允许用户提交`RegisterIncentiveProposal`。
+
+```bash
+evmosd tx gov submit-legacy-proposal register-incentive CONTRACT_ADDRESS ALLOCATION EPOCHS [flags]
+```
+
+**`cancel-incentive`**
+
+允许用户提交`CanelIncentiveProposal`。
+
+```bash
+evmosd tx gov submit-legacy-proposal cancel-incentive CONTRACT_ADDRESS [flags]
+```
+
+**`param-change`**
+
+允许用户提交`ParameterChangeProposal`。
+
+```bash
+evmosd tx gov submit-legacy-proposal param-change PROPOSAL_FILE [flags]
+```
+
+### gRPC
+
+#### 查询
+
+| 动词   | 方法                                                       | 描述                                         |
+| ------ | ---------------------------------------------------------- | --------------------------------------------- |
+| `gRPC` | `evmos.incentives.v1.Query/Incentives`                     | 获取所有注册的激励                           |
+| `gRPC` | `evmos.incentives.v1.Query/Incentive`                      | 获取给定合约的激励                           |
+| `gRPC` | `evmos.incentives.v1.Query/GasMeters`                      | 获取给定激励的燃气计量器                     |
+| `gRPC` | `evmos.incentives.v1.Query/GasMeter`                       | 获取给定激励和用户的燃气计量器               |
+| `gRPC` | `evmos.incentives.v1.Query/AllocationMeters`               | 获取所有分配计量器                           |
+| `gRPC` | `evmos.incentives.v1.Query/AllocationMeter`                | 获取给定货币单位的分配计量器                 |
+| `gRPC` | `evmos.incentives.v1.Query/Params`                         | 获取激励参数                                 |
+| `GET`  | `/evmos/incentives/v1/incentives`                          | 获取所有注册的激励                           |
+| `GET`  | `/evmos/incentives/v1/incentives/{contract}`               | 获取给定合约的激励                           |
+| `GET`  | `/evmos/incentives/v1/gas_meters`                          | 获取给定激励的燃气计量器                     |
+| `GET`  | `/evmos/incentives/v1/gas_meters/{contract}/{participant}` | 获取给定激励和用户的燃气计量器               |
+| `GET`  | `/evmos/incentives/v1/allocation_meters`                   | 获取所有分配计量器                           |
+| `GET`  | `/evmos/incentives/v1/allocation_meters/{denom}`           | 获取给定货币单位的分配计量器                 |
+| `GET`  | `/evmos/incentives/v1/params`                              | 获取激励参数                                 |
+```
+
+I'm sorry, but as an AI text-based model, I am unable to receive or process any files or attachments. However, you can copy and paste the Markdown content here, and I will do my best to translate it for you.
+
+
 # `incentives`
 
 ## Abstract

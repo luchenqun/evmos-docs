@@ -4,59 +4,106 @@ sidebar_position: 3
 
 # MetaMask
 
-To interact with the Evmos blockchain, you can use MetaMask, a popular wallet
-browser extension that launched with Ethereum. Once connected to Evmos, you can use Metamask
-to manage your Evmos accounts and interact with dApps on Evmos.
+与 Evmos 区块链进行交互，您可以使用 MetaMask，这是一个与以太坊一起推出的流行钱包浏览器扩展。一旦连接到 Evmos，您可以使用 MetaMask 管理您的 Evmos 账户并与 Evmos 上的 dApp 进行交互。
+
+## 连接到主网
+
+如果您尚未安装 MetaMask，请访问 [MetaMask 网站](https://metamask.io/download/) 并为您的浏览器安装该扩展。安装完成后，点击下面的按钮，使用 Chainlist 将您的 MetaMask 钱包连接到 Evmos 主网。
+
+<button onClick={() => parent.open("https://chainlist.org/chain/9001")} className="bg-red mb-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
+  连接到主网
+</button>
+
+Chainlist 可帮助您连接到 Evmos 区块链。它提供了您可以连接的 RPC 节点的概述。RPC 节点的目的是允许应用程序和用户与区块链网络进行通信。RPC 节点监听请求，响应所需的数据，或执行所请求的交易。
+
+点击 `Add to Metamask` 连接到标准提供程序，或点击地址旁边的 `Connect Wallet` 从 RPC 服务器提供商列表中选择。
+
+一旦连接到 RPC 服务器，您就可以开始使用 Evmos，并且可以开始使用 Evmos。如果遇到任何问题，您可以切换您的 RPC 终端点，然后应该可以正常使用。
+
+## 连接到测试网
+
+您可能希望将您的钱包连接到 Evmos 测试网，以与尚未在主网上发布的 dApp 进行交互。点击下面的按钮，使用 Chainlist 将您的 MetaMask 钱包连接到 Evmos 测试网：
+
+<button onClick={() => parent.open("https://chainlist.org/chain/9000")} className="bg-red mb-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
+  连接到测试网
+</button>
+
+## 连接到本地节点
+
+您还可以将 MetaMask 连接到本地节点，这在您计划在本地开发 Evmos 时非常有用。如果您尚未设置自己的本地节点，请参考 [快速入门教程](./../../protocol/evmos-cli/single-node)，或按照 [GitHub 存储库](https://github.com/evmos/evmos/) 中的说明进行操作。
+
+打开您浏览器上的 MetaMask 扩展，并登录您的 MetaMask 账户（如果尚未登录）。然后点击右上角的圆形图标，进入 `设置` > `网络` > `添加网络`，并按照下面的表单填写信息。
+
+import ProjectValue from "@site/src/components/ProjectValue";
+import Highlighter from "@site/src/components/Highlighter";
+
+![metamask networks settings](/img/metamask_network_settings.png)
+
+以下是您可以在 MetaMask 上粘贴的字段列表：
+
+- **网络名称：** <Highlighter keyword="name" postText=" 本地" />
+- **新的 RPC URL：** <Highlighter keyword="rpc_url_local" />
+- **链 ID：** <Highlighter keyword="rpc_url_local" />
+- **货币符号（可选）：** <Highlighter keyword="testnet_ticker" />
+- **区块浏览器 URL（可选）：** `n/a`
+
+## 导入账户
+
+如果您拥有一个账户的私钥，您可以将其导入到 MetaMask 中以在 Evmos 上使用该账户。转到 `我的账户`（右上角圆形图标）并选择 `导入账户`。您应该看到如下图所示的界面：
+
+![metamask manual import account page](/img/metamask_import.png)
+
+:::tip 如果加载账户余额需要一些时间，请将网络切换到 `Main Ethereum Network`（或任何其他网络，而不是 `Localhost 8545` 或 <Highlighter keyword="name" />），然后再切换回 <Highlighter keyword="name" />。 :::
+
+## 下载账户状态
+
+要查看您的 MetaMask 日志，请点击右上角的圆形图标，然后进入 `设置` > `高级` > `状态日志`。如果您在 JSON 文件中搜索账户地址，您将找到交易历史记录。
+
+## 重置账户
+
+如果您的 MetaMask 账户用于旧的测试网/主网升级，您需要重置您的账户以便在新的网络上使用。这将清除您账户的交易历史记录，但不会更改您账户中的余额，也不需要您重新输入您的恢复短语。
+
+:::warning 在清除您的钱包账户之前，请确保下载您的[账户状态](#download-account-state)以保留公共账户地址和交易记录。 :::
+
+转到 `设置` > `高级` 并点击下方显示的 `重置账户` 按钮：
+
+![Metamask 账户重置](/img/reset_account.png)
+
+---
+
+## sidebar_position: 3
+
+# MetaMask
+
+To interact with the Evmos blockchain, you can use MetaMask, a popular wallet browser extension that launched with Ethereum. Once connected to Evmos, you can use Metamask to manage your Evmos accounts and interact with dApps on Evmos.
 
 ## Connect to Mainnet
 
-If you don't have MetaMask installed, go to the [MetaMask
-website](https://metamask.io/download/) and install the extension for your
-browser. Once installed, click the button below to connect your Metamask wallet
-with Evmos Mainnet using Chainlist.
+If you don't have MetaMask installed, go to the [MetaMask website](https://metamask.io/download/) and install the extension for your browser. Once installed, click the button below to connect your Metamask wallet with Evmos Mainnet using Chainlist.
 
-<button onClick={() => parent.open('https://chainlist.org/chain/9001')} className="bg-red mb-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
-    Connect to Mainnnet
+<button onClick={() => parent.open("https://chainlist.org/chain/9001")} className="bg-red mb-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
+  Connect to Mainnnet
 </button>
 
-Chainlist helps you connect to the Evmos Blockchain. It provides an overview of
-RPC nodes that you can connect to. The purpose of RPC nodes is to allow
-applications and users to communicate with a Blockchain network. RPC nodes
-listen for requests, respond with the necessary data, or execute the requested
-transaction.
+Chainlist helps you connect to the Evmos Blockchain. It provides an overview of RPC nodes that you can connect to. The purpose of RPC nodes is to allow applications and users to communicate with a Blockchain network. RPC nodes listen for requests, respond with the necessary data, or execute the requested transaction.
 
-Click `Add to Metamask` to connect to the standard provider or choose
-from a list of RPC Server providers by clicking `Connect Wallet` next to the
-address.
+Click `Add to Metamask` to connect to the standard provider or choose from a list of RPC Server providers by clicking `Connect Wallet` next to the address.
 
-Once you've connected to an RPC Server, you're ready to go and can start using
-Evmos. If you run into any issues, you can switch your RPC endpoint, and you
-should be good to go.
+Once you've connected to an RPC Server, you're ready to go and can start using Evmos. If you run into any issues, you can switch your RPC endpoint, and you should be good to go.
 
 ## Connect to Testnet
 
-You might want to connect your wallet to the Evmos Testnet to interact with
-dApps that havn't launched on Mainnet yet. Click the button below to connect
-your Metamask wallet with Evmos Testnet using Chainlist:
+You might want to connect your wallet to the Evmos Testnet to interact with dApps that havn't launched on Mainnet yet. Click the button below to connect your Metamask wallet with Evmos Testnet using Chainlist:
 
-<button onClick={() => parent.open('https://chainlist.org/chain/9000')} className="bg-red mb-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
-    Connect to Testnet
+<button onClick={() => parent.open("https://chainlist.org/chain/9000")} className="bg-red mb-4 hover:bg-red1 text-white font-bold py-2 px-4 rounded">
+  Connect to Testnet
 </button>
 
 ## Connect to Local Node
 
-You can also connect Metamask to a local node, which is useful if you are
-planning on developing on Evmos locally. If you haven't already set up your own
-local node, refer to [the quickstart
-tutorial](./../../protocol/evmos-cli/single-node), or follow the instructions in
-the [GitHub repository](https://github.com/evmos/evmos/).
+You can also connect Metamask to a local node, which is useful if you are planning on developing on Evmos locally. If you haven't already set up your own local node, refer to [the quickstart tutorial](./../../protocol/evmos-cli/single-node), or follow the instructions in the [GitHub repository](https://github.com/evmos/evmos/).
 
-Open the MetaMask extension on your browser and log in to your
-MetaMask account if you are not already. Then click the top right circle and go
-to `Settings` > `Networks` > `Add Network` and fill the form as shown below.
-
-import ProjectValue from '@site/src/components/ProjectValue';
-import Highlighter from '@site/src/components/Highlighter';
+Open the MetaMask extension on your browser and log in to your MetaMask account if you are not already. Then click the top right circle and go to `Settings` > `Networks` > `Add Network` and fill the form as shown below.
 
 ![metamask networks settings](/img/metamask_network_settings.png)
 
@@ -70,39 +117,24 @@ Here is the list of fields that you can use to paste on Metamask:
 
 ## Importing Accounts
 
-If you own the private key to an account, you can import it to Metamask to use
-the account on Evmos. Go to `My Accounts` (top right circle) and select `Import
-Account`. You should see an image like the following one:
+If you own the private key to an account, you can import it to Metamask to use the account on Evmos. Go to `My Accounts` (top right circle) and select `Import Account`. You should see an image like the following one:
 
 ![metamask manual import account page](/img/metamask_import.png)
 
-:::tip
-If it takes some time to load the balance of the account, change the
-network to `Main Ethereum Network` (or any other than `Localhost 8545` or
-<Highlighter keyword="name" />) and then switch back to <Highlighter
-keyword="name" />.
-:::
+:::tip If it takes some time to load the balance of the account, change the network to `Main Ethereum Network` (or any other than `Localhost 8545` or
+
+<Highlighter keyword="name" />) and then switch back to <Highlighter keyword="name" />. :::
 
 ## Download Account State
 
-To see your Metamask logs, click the top right circle and go to `Settings` >
-`Advanced` > `State Logs`. If you search through the JSON file for the account
-address you'll find the transaction history.
+To see your Metamask logs, click the top right circle and go to `Settings` > `Advanced` > `State Logs`. If you search through the JSON file for the account address you'll find the transaction history.
 
 ## Reset Account
 
-If you used your Metamask account for a legacy testnet/mainnet upgrade, you will
-need to reset your account in order to use it with the new network. This will
-clear your account's transaction history, but it won't change the balances in
-your accounts or require you to re-enter your Secret Recovery Phrase.
+If you used your Metamask account for a legacy testnet/mainnet upgrade, you will need to reset your account in order to use it with the new network. This will clear your account's transaction history, but it won't change the balances in your accounts or require you to re-enter your Secret Recovery Phrase.
 
-:::warning
-Make sure you download your [account state](#download-account-state)
-to persist public account addresses and transactions before clearing your wallet
-accounts.
-:::
+:::warning Make sure you download your [account state](#download-account-state) to persist public account addresses and transactions before clearing your wallet accounts. :::
 
-Go to `Settings` > `Advanced`  and click the `Reset Account` button as shown
-below:
+Go to `Settings` > `Advanced` and click the `Reset Account` button as shown below:
 
 ![Metamask Account Reset](/img/reset_account.png)

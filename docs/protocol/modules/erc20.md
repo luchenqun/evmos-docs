@@ -1,6 +1,714 @@
 # `erc20`
 
 :::tip
+**注意：**正在处理与 ERC-20 模块相关的治理提案吗？
+请确保查看 [Evmos 治理](https://academy.evmos.org/articles/advanced/governance/)，
+特别是 [最佳实践](https://academy.evmos.org/articles/advanced/governance/best-practices)。
+:::
+
+## 摘要
+
+本文档规定了 Evmos Hub 的内部 `x/erc20` 模块。
+
+`x/erc20` 模块使 Evmos Hub 能够支持 Evmos 的 EVM 和 Cosmos 运行时之间的令牌的双向、无信任、链上转换，
+具体来说是 `x/evm` 和 `x/bank` 模块。
+这使得 Evmos 上的令牌持有人可以即时将其本地 Cosmos `sdk.Coins`（在本文档中称为 "Coin(s)"）转换为 ERC-20（也称为 "Token(s)"），
+反之亦然，同时保持与发行环境/运行时（EVM 或 Cosmos）上的原始资产的可替代性，并保留 ERC-20 合约的所有权。
+
+此转换功能完全由本地 EVMOS 令牌持有人管理，
+他们管理着规范的 `TokenPair` 注册（即 ERC20 ←→ Coin 映射）。
+此治理功能使用 Cosmos-SDK 的 `gov` 模块实现，
+使用自定义提案类型分别进行规范的映射注册和更新。
+
+为什么这很重要？Cosmos 和 EVM 是两个默认情况下不兼容的运行时。
+本地 Cosmos Coins 无法在需要 ERC-20 标准的应用程序中使用。
+Cosmos coins 存在于 `x/bank` 模块（可以访问模块方法，如查询供应量或余额），
+而 ERC-20 令牌存在于智能合约中。
+这个问题类似于 [wETH](https://coinmarketcap.com/alexandria/article/what-is-wrapped-ethereum-weth)，
+不同之处在于它不仅适用于燃料令牌（如 EVMOS），
+还适用于所有 Cosmos Coins（IBC 代金券、质押和治理代币等）。
+
+通过 `x/erc20`，Evmos 用户可以：
+
+- 在基于 EVM 的链上使用现有的本地 Cosmos 资产（如 OSMO 或 ATOM），例如
+用于在 DeFi 协议上交易 IBC 代币，购买 NFT 等。
+- 将现有的以太坊和其他基于 EVM 的链上的令牌转移到 Evmos，
+以利用 Cosmos 生态系统中的特定应用链。
+- 构建基于 ERC-20 智能合约的新应用程序，并访问 Cosmos 生态系统。
+
+## 目录
+
+1. **[概念](#概念)**
+2. **[状态](#状态)**
+3. **[状态转换](#状态转换)**
+4. **[交易](#交易)**
+5. **[钩子](#钩子)**
+6. **[事件](#事件)**
+7. **[参数](#参数)**
+8. **[客户端](#客户端)**
+
+## 概念
+
+### 代币对
+
+`x/erc20` 模块维护了一个原生 Cosmos Coin 与 ERC20 代币合约地址之间的一对一映射关系（即 `sdk.Coin` ←→ ERC20），称为 `TokenPair`。
+给定一对代币，可以通过治理机制启用或禁用 ERC20 代币与 Cosmos Coin 之间的转换。
+
+### 代币对注册
+
+用户可以通过治理模块注册一个新的代币对提案，并发起投票将该代币对纳入模块中。
+根据先存在的是代币还是币种，可以注册 Cosmos Coin 或 ERC20 代币来创建代币对。
+一个提案可以包含多个代币对。
+
+当提案通过时，erc20 模块会在应用的存储中注册 Cosmos Coin 和 ERC20 代币的映射关系。
+
+#### 注册 Cosmos Coin
+
+原生的 Cosmos Coin 对应于 bank 模块中的 `sdk.Coin`。
+它可以是原生的质押/燃料币种（例如 EVMOS、ATOM 等），
+也可以是 IBC 可互换代币凭证（即 denom 格式为 `ibc/{hash}`）。
+
+当为现有的原生 Cosmos Coin 发起提案时，
+erc20 模块将部署一个 ERC20 合约工厂，
+代表该代币对的 ERC20 代币，
+并使模块拥有该合约的所有权。
+
+#### 注册 ERC20 代币
+
+也可以发起一个现有（已部署）ERC20 合约的提案。
+在这种情况下，ERC20 代币保留合约的原始所有者，
+并使用类似于 [ICS20 - 可互换代币转移](https://github.com/cosmos/ibc/blob/master/spec/app/ics-020-fungible-token-transfer) 规范定义的托管和铸造/销毁和解托机制。
+代币对由原始的 ERC20 代币和相应的原生 Cosmos Coin 币种组成。
+
+#### 代币详情和元数据
+
+代币的元数据是从ERC20代币的详情（名称、符号、小数位数）派生出来的，反之亦然。
+还有一种特殊情况是描述了IBC可互换代币（ICS20）的ERC20表示。
+
+#### 代币元数据到ERC20详情
+
+在注册Cosmos代币时，使用以下银行`元数据`来部署ERC20合约：
+
+- **名称**
+- **符号**
+- **小数位数**
+
+与ERC20相比，原生的Cosmos代币包含更详细的元数据，
+并包含了转换为ERC20代币所需的所有必要细节，
+无需额外填充数据。
+
+#### IBC凭证元数据到ERC20详情
+
+IBC凭证应符合以下标准：
+
+- **名称**：`{名称} channel-{通道}`
+- **符号**：`ibc{名称}-{通道}`
+- **小数位数**：从银行`元数据`派生
+
+#### ERC20详情到代币元数据
+
+在注册ERC20代币时，代币元数据是从ERC20元数据和银行元数据派生出来的：
+
+- **描述**：`Cosmos代币的{合约地址}表示`
+- **DenomUnits**：
+    - 代币：`0`
+    - ERC20：`{uint32(erc20Data.Decimals)}`
+- **基础**：`{"erc20/%s", 地址}`
+- **显示**：`{erc20Data.Name}`
+- **名称**：`{types.CreateDenom(strContract)}`
+- **符号**：`{erc20Data.Symbol}`
+
+### 代币对修饰符
+
+可以通过几个治理提案修改有效的代币对。
+通过`ToggleTokenConversionProposal`，可以切换代币对的内部转换，
+从而可以启用或禁用代币对之间的转换。
+
+### 代币转换
+
+一旦代币对提案通过，模块允许对该代币对进行转换。
+Evmos链上的原生Cosmos代币和IBC凭证持有者可以将其代币转换为ERC20代币，
+然后可以在Evmos EVM中使用，通过创建`ConvertCoin`交易来实现。
+反之，`ConvertERC20`交易允许Evmos链上的ERC20代币持有者
+将ERC20代币转换回其原生的Cosmos代币表示。
+
+根据ERC20合约的所有权情况，
+在转换过程中，ERC20代币要么遵循燃烧/铸造机制，要么遵循转账/托管机制。
+
+### 恶意合约
+
+ERC20标准是一个接口，它定义了一组方法签名（名称、参数和输出），但没有定义方法的内部逻辑。
+因此，开发人员有可能部署包含隐藏恶意行为的合约。
+例如，ERC20的`transfer`方法负责将一定数量的代币发送给指定的接收者，但它可能包含代码，将一部分代币转移到由恶意合约部署者拥有的不同预定义账户中。
+
+更复杂的恶意实现可能还会继承自包含恶意行为的自定义ERC20合约的代码。
+有关更详细的示例，请参阅x/erc20审计，第`IF-EVMOS-06: IERC20 Contracts may execute arbitrary code`节。
+
+由于`x/erc20`模块允许通过治理注册任意的ERC20合约，因此在投票阶段，提议者或投票者需要手动验证所提议的合约是否使用了默认的ERC20.sol实现。
+
+以下是我们对审核过程的建议：
+
+- 合约的Solidity代码应该经过验证并可访问（例如使用区块链浏览器）
+- 合约应该由可信的审计机构进行审计
+- 继承的合约需要进行正确性验证
+
+
+## 状态
+
+### 状态对象
+
+`x/erc20`模块在状态中保存以下对象：
+
+| 状态对象           | 描述                                       | 键                          | 值                | 存储    |
+| ------------------ | ------------------------------------------ | --------------------------- | ------------------ | --- |
+| `TokenPair`        | 代币对的字节码                             | `[]byte{1} + []byte(id)`    | `[]byte{tokenPair}` | KV    |
+| `TokenPairByERC20` | 通过ERC20合约字节码的代币对id字节码         | `[]byte{2} + []byte(erc20)` | `[]byte(id)`       | KV    |
+| `TokenPairByDenom` | 通过denom字符串的代币对id字节码             | `[]byte{3} + []byte(denom)` | `[]byte(id)`       | KV    |
+
+#### 代币对
+
+将本机 Cosmos 币种与 ERC20 代币合约地址进行一对一映射（即 `sdk.Coin` ←→ ERC20）。
+
+```go
+type TokenPair struct {
+	// address of ERC20 contract token
+	Erc20Address string `protobuf:"bytes,1,opt,name=erc20_address,json=erc20Address,proto3" json:"erc20_address,omitempty"`
+	// cosmos base denomination to be mapped to
+	Denom string `protobuf:"bytes,2,opt,name=denom,proto3" json:"denom,omitempty"`
+	// shows token mapping enable status
+	Enabled bool `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// ERC20 owner address ENUM (0 invalid, 1 ModuleAccount, 2 external address
+	ContractOwner Owner `protobuf:"varint,4,opt,name=contract_owner,json=contractOwner,proto3,enum=evmos.erc20.v1.Owner" json:"contract_owner,omitempty"`
+}
+```
+
+#### 代币对 ID
+
+通过使用以下函数获取 ERC20 十六进制合约地址和币种的 SHA256 哈希来获得 `TokenPair` 的唯一标识符：
+
+```tsx
+tokenPairId = sha256(erc20 + "|" + denom)
+```
+
+#### 代币来源
+
+`ConvertCoin` 和 `ConvertERC20` 功能使用所有者字段来检查所使用的代币是本机 Coin 还是本机 ERC20。
+该字段基于代币注册提案类型（`RegisterCoinProposal` = 1，`RegisterERC20Proposal` = 2）。
+
+`Owner` 枚举了 ERC20 合约的所有权。
+
+```go
+type Owner int32
+
+const (
+	// OWNER_UNSPECIFIED defines an invalid/undefined owner.
+	OWNER_UNSPECIFIED Owner = 0
+	// OWNER_MODULE erc20 is owned by the erc20 module account.
+	OWNER_MODULE Owner = 1
+	// EXTERNAL erc20 is owned by an external account.
+	OWNER_EXTERNAL Owner = 2
+)
+```
+
+可以使用以下辅助函数检查 `Owner`：
+
+```go
+// IsNativeCoin returns true if the owner of the ERC20 contract is the
+// erc20 module account
+func (tp TokenPair) IsNativeCoin() bool {
+	return tp.ContractOwner == OWNER_MODULE
+}
+
+// IsNativeERC20 returns true if the owner of the ERC20 contract not the
+// erc20 module account
+func (tp TokenPair) IsNativeERC20() bool {
+	return tp.ContractOwner == OWNER_EXTERNAL
+}
+```
+
+#### 根据 ERC20 和币种查询代币对
+
+`TokenPairByERC20` 和 `TokenPairByDenom` 是用于查询代币对 ID 的附加状态对象。
+
+### 创世状态
+
+`x/erc20` 模块的 `GenesisState` 定义了从先前导出的高度初始化链所需的状态。
+它包含模块参数和已注册的代币对：
+
+```go
+// GenesisState defines the module's genesis state.
+type GenesisState struct {
+	// module parameters
+	Params Params `protobuf:"bytes,1,opt,name=params,proto3" json:"params"`
+	// registered token pairs
+	TokenPairs []TokenPair `protobuf:"bytes,2,rep,name=token_pairs,json=tokenPairs,proto3" json:"token_pairs"`
+}
+```
+
+
+## 状态转换
+
+erc20 模块允许两种类型的注册状态转换。
+根据代币对是使用 `RegisterCoinProposal` 还是 `RegisterERC20Proposal` 注册，有四种可能的转换状态。
+
+### 代币对注册
+
+Cosmos 币和 ERC20 代币注册都允许使用一个提案注册多个代币对。
+为简单起见，以下描述仅描述了每个提案注册一个代币对的情况。
+
+#### 1. 注册 Coin
+
+用户注册一个本机 Cosmos Coin。
+一旦提案通过（即由治理批准），
+ERC20 模块使用工厂模式部署 Cosmos Coin 的 ERC20 代币合约表示。
+请注意，无法注册本机 Evmos 币，
+因为任何币种中包含 "evm" 的币种都无法注册。
+相反，Evmos 代币可以通过 Nomand 的包装 Evmos（WEVMOS）合约进行转换。
+
+1. 用户提交一个 `RegisterCoinProposal`。
+2. Evmos Hub 的验证者使用 `MsgVote` 对提案进行投票，提案通过。
+3. 如果 Cosmos 币或 IBC 凭证存在于银行模块的供应中，
+   在基于 ERC20Mintable 接口的 EVM 上创建 [ERC20 代币合约](https://github.com/evmos/evmos/blob/main/contracts/ERC20MinterBurnerDecimals.sol)，
+   基于银行模块提案内容中的 `Metadata` 字段派生出代币的详细信息（名称、符号、小数位数等）。
+
+#### 2. 注册 ERC20
+
+用户注册一个已经部署在 EVM 模块上的 ERC20 代币合约。
+一旦提案通过（即由治理机构批准），
+ERC20 模块将创建一个 ERC20 代币的 Cosmos 币表示。
+
+1. 用户提交一个 `RegisterERC20Proposal`。
+2. EVMOS 链的验证者使用 `MsgVote` 对提案进行投票，提案通过。
+3. 如果 ERC-20 合约已经部署在 EVM 模块上，从 ERC20 的详细信息创建一个银行币的 `Metadata`。
+
+### 代币对转换
+
+可以通过以下方式进行已注册的 `TokenPair` 的转换：
+
+- Cosmos 交易（`ConvertCoin` 和 `ConvertERC20`）
+- 以太坊交易（即发送一个利用 EVM 钩子的 `MsgEthereumTx`）
+
+#### 1. 已注册的币种
+
+:::tip
+👉 **上下文：** 通过 `RegisterCoinProposal` 治理提案创建了一个 `TokenPair`。
+该提案创建了一个 ERC20 合约
+（[ERC20Mintable by openzeppelin](https://github.com/OpenZeppelin/openzeppelin-contracts/tree/master/contracts/token/ERC20)），
+将其分配为合约的 `owner`，从而赋予其调用 ERC20 的 `mint()` 和 `burnFrom()` 方法的权限。
+:::
+
+##### 不变量
+
+- 只有 `ModuleAccount` 应该具有 ERC20 的 Minter 角色。否则，
+  用户可以单方面地铸造无限供应的 ERC20 代币，
+  然后将其转换为本地币种
+- 用户和 `ModuleAccount`（所有者）应该是 Cosmos 币的 Burn 角色的唯一持有者
+- 不应该存在任何不属于治理机构所有的本地 Cosmos 币 ERC20 合约（例如 Evmos、Atom、Osmo ERC20 合约）
+- 代币/币种供应始终保持不变：
+    - 总币种供应 = 币种 + 托管币种
+    - 总代币供应 = 托管币种 = 铸造的代币
+
+##### 1.1 Coin转ERC20
+
+1. 用户提交`ConvertCoin`交易
+2. 检查是否允许进行该交易对的转换，包括发送者和接收者
+    - 全局参数已启用
+    - 代币对已启用
+    - 发送者代币未锁定（在银行模块中进行检查）
+    - 接收者地址未列入黑名单
+3. 如果Coin是原生的Cosmos Coin，并且Token Owner是`ModuleAccount`
+    1. 通过将它们发送到erc20模块账户来托管Cosmos Coin
+    2. 调用`mint()`从`ModuleAccount`地址铸造ERC20代币，并将铸造的代币发送到接收者地址
+4. 检查代币余额是否增加了指定数量
+
+##### 1.2 ERC20转Coin
+
+1. 用户提交`ConvertERC20`交易
+2. 检查是否允许进行该交易对的转换，包括发送者和接收者（参见[1.1 Coin转ERC20](#11-coin转erc20)）
+3. 如果代币是ERC20代币，并且Token Owner是`ModuleAccount`
+    1. 在ERC20上调用`burnCoins()`来销毁用户余额中的ERC20代币
+    2. 从模块向接收者地址发送Coins（之前托管的，参见[1.1 Coin转ERC20](#11-coin转erc20)）
+4. 检查
+    - Coin余额是否增加了指定数量
+    - 代币余额是否减少了指定数量
+
+#### 2. 已注册的ERC20代币
+
+:::tip
+👉 **背景：** 通过`RegisterERC20Proposal`治理提案创建了一个`TokenPair`。
+`ModuleAccount`不是合约的所有者，因此无法代表用户铸造新代币或销毁代币。
+下面描述的机制遵循ICS20标准的相同模型，使用托管和铸造/销毁和解除托管逻辑。
+:::
+
+##### 不变量
+
+- EVM运行时的ERC20代币供应始终保持不变：
+    - 托管的ERC20代币 + 铸造的Cosmos Coin代表ERC20 = 销毁的ERC20代币的Cosmos Coin代表 + 未托管的ERC20代币
+        - 将10个ERC20转换为Coin，总供应增加10个。在Cosmos侧进行铸造，EVM上不会有供应变化
+        - 将10个Coin转换为ERC20，总供应减少10个。在Cosmos侧进行销毁，EVM上供应不变
+    - 总ERC20代币供应 = 未托管的代币 + 托管的代币（在模块账户地址上）
+    - 原生ERC20的总Coin供应 = 模块账户上托管的ERC20代币（即余额） = 铸造的Coins
+
+##### 2.1 ERC20转Coin
+
+1. 用户提交`ConvertERC20`交易
+2. 检查是否允许对该配对、发送者和接收者进行转换（参见[1.1 Coin转ERC20](#11-coin-to-erc20)）
+3. 如果代币是ERC20代币且代币所有者**不是**`ModuleAccount`
+    1. 通过将它们发送到ERC20模块账户来托管ERC20代币
+    2. 铸造相应配对面额的Cosmos币，并将币发送到接收者地址
+4. 检查
+    - 币余额增加了指定数量
+    - 代币余额减少了指定数量
+5. 如果在日志中发现了意外的`Approval`事件，则失败，以防止恶意合约行为
+
+##### 2.2 Coin转ERC20
+
+1. 用户提交`ConvertCoin`交易
+2. 检查是否允许对该配对、发送者和接收者进行转换
+3. 如果币是原生的Cosmos币且代币所有者**不是**`ModuleAccount`
+    1. 通过将它们发送到ERC20模块账户来托管Cosmos币
+    2. 通过将托管的ERC20发送到接收者地址，解锁托管的ERC20
+    3. 销毁托管的Cosmos币
+4. 检查代币余额增加了指定数量
+5. 如果在日志中发现了意外的`Approval`事件，则失败，以防止恶意合约行为
+
+
+## 交易
+
+本节定义了导致前一节中定义的状态转换的`sdk.Msg`具体类型。
+
+### `RegisterCoinProposal`
+
+一种gov `Content`类型，用于从Cosmos币注册一个代币配对。
+治理用户对此提案进行投票，
+并在投票通过时自动执行`RegisterCoinProposal`的自定义处理程序。
+
+```go
+type RegisterCoinProposal struct {
+	// title of the proposal
+	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// proposal description
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// metadata slice of the native Cosmos coins
+	Metadata []types.Metadata `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata"`
+}
+```
+
+如果提案内容的状态验证失败，则有以下情况：
+
+- 标题无效（长度或字符）
+- 描述无效（长度或字符）
+- 元数据无效
+    - 名称和符号不能为空
+    - 基础和显示单位是有效的币单位
+    - 基础和显示单位在DenomUnit切片中存在
+    - 基础单位的指数为0
+    - 单位的命名按升序排序
+    - 单位的命名不重复
+
+### `RegisterERC20Proposal`
+
+一种gov `Content`类型，用于从ERC20代币注册一个代币配对。
+治理用户对此提案进行投票，
+并在投票通过时自动执行`RegisterERC20Proposal`的自定义处理程序。
+
+```go
+type RegisterERC20Proposal struct {
+	// title of the proposal
+	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// proposal description
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// contract addresses of ERC20 tokens
+	Erc20Addresses []string `protobuf:"bytes,3,rep,name=erc20addresses,proto3" json:"erc20addresses,omitempty"`
+}
+```
+
+如果以下情况发生，提案内容的无状态验证将失败：
+
+- 标题无效（长度或字符）
+- 描述无效（长度或字符）
+- ERC20 地址无效
+
+### `MsgConvertCoin`
+
+用户广播一个 `MsgConvertCoin` 消息，将 Cosmos Coin 转换为 ERC20 代币。
+
+```go
+type MsgConvertCoin struct {
+	// Cosmos coin which denomination is registered on erc20 bridge.
+	// The coin amount defines the total ERC20 tokens to convert.
+	Coin types.Coin `protobuf:"bytes,1,opt,name=coin,proto3" json:"coin"`
+	// recipient hex address to receive ERC20 token
+	Receiver string `protobuf:"bytes,2,opt,name=receiver,proto3" json:"receiver,omitempty"`
+	// cosmos bech32 address from the owner of the given ERC20 tokens
+	Sender string `protobuf:"bytes,3,opt,name=sender,proto3" json:"sender,omitempty"`
+}
+```
+
+如果以下情况发生，消息的无状态验证将失败：
+
+- Coin 无效（无效的 denom 或非正数金额）
+- 接收者的十六进制地址无效
+- 发送者的 bech32 地址无效
+
+### `MsgConvertERC20`
+
+用户广播一个 `MsgConvertERC20` 消息，将 ERC20 代币转换为本机的 Cosmos coin。
+
+```go
+type MsgConvertERC20 struct {
+	// ERC20 token contract address registered on erc20 bridge
+	ContractAddress string `protobuf:"bytes,1,opt,name=contract_address,json=contractAddress,proto3" json:"contract_address,omitempty"`
+	// amount of ERC20 tokens to mint
+	Amount github_com_cosmos_cosmos_sdk_types.Int `protobuf:"bytes,2,opt,name=amount,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Int" json:"amount"`
+	// bech32 address to receive SDK coins.
+	Receiver string `protobuf:"bytes,3,opt,name=receiver,proto3" json:"receiver,omitempty"`
+	// sender hex address from the owner of the given ERC20 tokens
+	Sender string `protobuf:"bytes,4,opt,name=sender,proto3" json:"sender,omitempty"`
+}
+```
+
+如果以下情况发生，消息的无状态验证将失败：
+
+- 合约地址无效
+- 金额不是正数
+- 接收者的 bech32 地址无效
+- 发送者的十六进制地址无效
+
+### `ToggleTokenConversionProposal`
+
+一种用于切换令牌对内部转换的 gov 内容类型。
+
+```go
+type ToggleTokenConversionProposal struct {
+	// title of the proposal
+	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	// proposal description
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// token identifier can be either the hex contract address of the ERC20 or the
+	// Cosmos base denomination
+	Token string `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
+}
+```
+
+
+## Hooks
+
+erc20 模块实现了来自 EVM 的交易钩子，以触发令牌对的转换。
+
+### EVM 钩子
+
+EVM 钩子允许用户通过向模块账户地址发送以太坊 tx 转账来将 ERC20 转换为 Cosmos Coin。
+这使得通过 Metamask 和启用了 EVM 的钱包对已通过本机 Cosmos coin 或 ERC20 代币注册的令牌进行本机转换成为可能。
+请注意，为了防止恶意合约行为，此处无法执行发送方和接收方的额外币/代币余额检查
+（与 [`ConvertERC20` msg](#state-transitions) 中执行的操作相同），
+因为事务之前的余额在钩子中不可用。
+
+#### 注册的 Coin：ERC20 到 Coin
+
+1. 用户将 ERC20 代币转账到 `ModuleAccount` 地址以进行托管
+2. 通过查看[以太坊事件日志](https://medium.com/mycrypto/understanding-event-logs-on-the-ethereum-blockchain-f4ae7ba50378#:~:text=A%20log%20record%20can%20be,or%20a%20change%20of%20ownership.&text=Each%20log%20record%20consists%20of,going%20on%20in%20an%20event)，
+   检查从发送者转账的 ERC20 代币是本机 ERC20 还是本机 Cosmos Coin
+3. 如果代币合约地址对应于本机 Cosmos Coin 的 ERC20 表示形式
+    1. 从 `ModuleAccount` 调用 `burn()` ERC20 方法。
+       请注意，这与 1.2 相同，但由于代币已经在 `ModuleAccount` 余额中，
+       我们从模块地址燃烧代币，而不是调用 `burnFrom()`。
+       还请注意，我们不需要铸造，
+       因为 [1.1 coin to erc20](#state-transitions) 将代币托管
+    2. 将 Cosmos Coin 转账到发送者十六进制地址的 bech32 账户地址
+
+#### 注册的ERC20：ERC20转Coin
+
+1. 用户将代币转移到`ModuleAccount`以托管它们
+2. 检查转移的ERC20代币是原生的ERC20还是原生的cosmos币
+3. 如果代币合约地址是原生的ERC20代币
+    1. 铸造Cosmos币
+    2. 将Cosmos币转移到发送者的bech32账户地址的十六进制形式
+
+
+## 事件
+
+`x/erc20`模块会发出以下事件：
+
+### 注册Coin提案
+
+| 类型            | 属性键           | 属性值             |
+| --------------- | --------------- | ----------------- |
+| `register_coin` | `"cosmos_coin"` | `{denom}`         |
+| `register_coin` | `"erc20_token"` | `{erc20_address}` |
+
+### 注册ERC20提案
+
+| 类型             | 属性键           | 属性值             |
+| ---------------- | --------------- | ----------------- |
+| `register_erc20` | `"cosmos_coin"` | `{denom}`         |
+| `register_erc20` | `"erc20_token"` | `{erc20_address}` |
+
+### 切换代币转换
+
+| 类型                      | 属性键           | 属性值             |
+| ------------------------- | --------------- | ----------------- |
+| `toggle_token_conversion` | `"erc20_token"` | `{erc20_address}` |
+| `toggle_token_conversion` | `"cosmos_coin"` | `{denom}`         |
+
+### 转换Coin
+
+| 类型           | 属性键           | 属性值                      |
+| -------------- | --------------- | ---------------------------- |
+| `convert_coin` | `"sender"`      | `{msg.Sender}`               |
+| `convert_coin` | `"receiver"`    | `{msg.Receiver}`             |
+| `convert_coin` | `"amount"`      | `{msg.Coin.Amount.String()}` |
+| `convert_coin` | `"cosmos_coin"` | `{denom}`                    |
+| `convert_coin` | `"erc20_token"` | `{erc20_address}`            |
+
+### 转换ERC20
+
+| 类型            | 属性键           | 属性值                |
+| --------------- | --------------- | ----------------------- |
+| `convert_erc20` | `"sender"`      | `{msg.Sender}`          |
+| `convert_erc20` | `"receiver"`    | `{msg.Receiver}`        |
+| `convert_erc20` | `"amount"`      | `{msg.Amount.String()}` |
+| `convert_erc20` | `"cosmos_coin"` | `{denom}`               |
+| `convert_erc20` | `"erc20_token"` | `{msg.ContractAddress}` |
+
+## 参数
+
+erc20 模块包含以下参数：
+
+| 键                     | 类型          | 默认值                 |
+| ----------------------- | ------------- | ----------------------------- |
+| `EnableErc20`    | bool          | `true`                        |
+| `EnableEVMHook`         | bool          | `true`                        |
+
+### 启用 ERC20
+
+`EnableErc20` 参数用于切换模块中的所有状态转换。
+当禁用该参数时，将阻止所有代币对注册和转换功能。
+
+### 启用 EVM Hook
+
+`EnableEVMHook` 参数启用 EVM Hook，通过将代币通过 `MsgEthereumTx` 转移到 `ModuleAddress` 以太坊地址，将 ERC20 代币转换为 Cosmos Coin。
+
+## 客户端
+
+### CLI
+
+下面是使用 `x/erc20` 模块添加的 `evmosd` 命令列表。
+您可以使用 `evmosd -h` 命令获取完整列表。
+CLI 命令的示例：
+
+```bash
+evmosd query erc20 params
+```
+
+#### 查询
+
+| 命令         | 子命令    | 描述                    |
+| --------------- | ------------- | ------------------------------ |
+| `query` `erc20` | `params`      | 获取 erc20 参数               |
+| `query` `erc20` | `token-pair`  | 获取已注册的代币对      |
+| `query` `erc20` | `token-pairs` | 获取所有已注册的代币对 |
+
+#### 交易
+
+| 命令      | 子命令      | 描述                    |
+| ------------ | --------------- | ------------------------------ |
+| `tx` `erc20` | `convert-coin`  | 将 Cosmos Coin 转换为 ERC20 |
+| `tx` `erc20` | `convert-erc20` | 将 ERC20 转换为 Cosmos Coin |
+
+#### 提案
+
+`tx gov submit-legacy-proposal` 命令允许用户使用治理模块的 CLI 创建提案：
+
+**`register-coin`**
+
+允许用户提交 `RegisterCoinProposal`。
+提交一个提案，将 Cosmos coin 注册到 erc20，并附带初始存款。
+通过 JSON 文件提供提案详细信息。
+
+```bash
+evmosd tx gov submit-legacy-proposal register-coin METADATA_FILE [flags]
+```
+
+METADATA_FILE 包含以下内容（示例）：
+
+```json
+{
+  "metadata": [
+    {
+			"description": "The native staking and governance token of the Osmosis chain",
+			"denom_units": [
+				{
+						"denom": "ibc/<HASH>",
+						"exponent": 0,
+						"aliases": ["ibcuosmo"]
+				},
+				{
+						"denom": "OSMO",
+						"exponent": 6
+				}
+			],
+			"base": "ibc/<HASH>",
+			"display": "OSMO",
+			"name": "Osmo",
+			"symbol": "OSMO"
+		}
+	]
+}
+```
+
+**`register-erc20`**
+
+允许用户提交 `RegisterERC20Proposal`。
+提交一个注册 ERC20 代币的提案，同时附带初始存款。
+要在一个提案中注册多个代币，请依次传递它们，例如 `register-erc20 <contract-address1> <contract-address2>`。
+
+```bash
+evmosd tx gov submit-legacy-proposal register-erc20 ERC20_ADDRESS... [flags]
+```
+
+**`toggle-token-conversion`**
+
+允许用户提交 `ToggleTokenConversionProposal`。
+
+```bash
+evmosd tx gov submit-legacy-proposal toggle-token-conversion TOKEN [flags]
+```
+
+**`param-change`**
+
+允许用户提交 `ParameterChangeProposal`。
+
+```bash
+evmosd tx gov submit-legacy-proposal param-change PROPOSAL_FILE [flags]
+```
+
+### gRPC
+
+#### 查询
+
+| 动词   | 方法                             | 描述                       |
+| ------ | -------------------------------- | ------------------------- |
+| `gRPC` | `evmos.erc20.v1.Query/Params`     | 获取 ERC20 参数            |
+| `gRPC` | `evmos.erc20.v1.Query/TokenPair`  | 获取已注册的代币对         |
+| `gRPC` | `evmos.erc20.v1.Query/TokenPairs` | 获取所有已注册的代币对     |
+| `GET`  | `/evmos/erc20/v1/params`          | 获取 ERC20 参数            |
+| `GET`  | `/evmos/erc20/v1/token_pair`      | 获取已注册的代币对         |
+| `GET`  | `/evmos/erc20/v1/token_pairs`     | 获取所有已注册的代币对     |
+
+#### 交易
+
+| 动词   | 方法                              | 描述                       |
+| ------ | --------------------------------- | ------------------------- |
+| `gRPC` | `evmos.erc20.v1.Msg/ConvertCoin`   | 将 Cosmos Coin 转换为 ERC20 |
+| `gRPC` | `evmos.erc20.v1.Msg/ConvertERC20`  | 将 ERC20 转换为 Cosmos Coin |
+| `GET`  | `/evmos/erc20/v1/tx/convert_coin`  | 将 Cosmos Coin 转换为 ERC20 |
+| `GET`  | `/evmos/erc20/v1/tx/convert_erc20` | 将 ERC20 转换为 Cosmos Coin |
+
+
+# `erc20`
+
+:::tip
 **Note:** Working on a governance proposal related to the ERC-20 Module?
 Make sure to look at [Evmos Governance](https://academy.evmos.org/articles/advanced/governance/),
 and specifically the [best practices](https://academy.evmos.org/articles/advanced/governance/best-practices).

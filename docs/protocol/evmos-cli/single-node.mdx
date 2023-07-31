@@ -2,6 +2,303 @@
 sidebar_position: 3
 ---
 
+# 单节点
+
+按照本页面的说明，您可以手动或使用已准备好的自动化脚本运行单节点本地网络。运行单节点设置对于希望测试其应用程序和协议功能的开发人员来说非常有用，因为它简单且速度快。对于更复杂的设置，请参考[多节点设置](./multi-nodes)页面。
+
+## 先决条件阅读
+
+- [安装二进制文件](./)
+
+## 自动化脚本
+
+启动本地 Evmos 节点的最简单方法是使用[Evmos 仓库](https://github.com/evmos/evmos/blob/main/local_node.sh)根目录下提供的辅助脚本，该脚本将为测试目的创建一个合理的默认配置：
+
+```bash
+$ local_node.sh
+...
+```
+
+:::tip
+为了避免覆盖生产中使用的真实节点的任何数据，决定将自动生成的测试配置存储在`~/.tmp-evmosd`而不是默认的`~/.evmosd`中。
+:::
+
+在使用`local_node.sh`脚本时，需要在所有针对本地测试节点的`evmosd`命令后面添加`--home ~/.tmp-evmosd`标志。这是必需的，因为`home`目录无法存储在`evmosd`配置中，可以在下面的输出中看到。为了方便使用，可以将此目录路径导出为环境变量：
+
+```
+$ export TMP=$HOME/.tmp-evmosd`
+$ evmosd config --home $TMP
+{
+"chain-id": "evmos_9000-1",
+"keyring-backend": "test",
+"output": "text",
+"node": "tcp://localhost:26657",
+"broadcast-mode": "sync"
+}
+```
+
+您可以通过更改配置变量来自定义本地节点脚本。以下是脚本的摘录，供您参考可进行的调整：
+
+```bash
+# Customize the name of your keys, the chain-id, moniker of the node, keyring backend, and more
+KEYS[0]="dev0"
+KEYS[1]="dev1"
+KEYS[2]="dev2"
+CHAINID="evmos_9000-1"
+MONIKER="localtestnet"
+# Remember to change to other types of keyring like 'file' in-case exposing to outside world,
+# otherwise your balance will be wiped quickly
+# The keyring test does not require private key to steal tokens from you
+KEYRING="test"
+KEYALGO="eth_secp256k1"
+LOGLEVEL="info"
+# Set dedicated home directory for the evmosd instance
+HOMEDIR="$HOME/.tmp-evmosd"
+# to trace evm
+#TRACE="--trace"
+TRACE=""
+
+[...]
+
+  # Adjust this set a different maximum gas limit
+  jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+[...]
+
+```
+
+## 手动部署
+
+本指南将帮助您创建一个单个验证节点，该节点在本地运行一个网络，用于测试和其他开发相关用途。
+
+### 初始化链
+
+在实际运行节点之前，我们需要初始化链，尤其是其创世文件。可以使用`init`子命令来完成此操作：
+
+```bash
+$MONIKER=testing
+$KEY=dev0
+$CHAINID="evmos_9000-4"
+
+# The argument $MONIKER is the custom username of your node, it should be human-readable.
+evmosd init $MONIKER --chain-id=$CHAINID
+```
+
+:::tip
+您可以通过更新`config.toml`文件来[编辑](./configuration#client-configuration)此`moniker`。
+:::
+
+上述命令将创建运行节点和验证器所需的所有配置文件，以及一个默认的创世文件，该文件定义了网络的初始状态。所有这些[配置文件](./configuration#client-configuration)默认存储在 `~/.evmosd` 目录中，但您可以通过传递 `--home` 标志来更改此文件夹的位置。
+
+### 创世过程
+
+### 添加创世账户
+
+在启动链之前，您需要使用[keyring](./../../protocol/concepts/keyring#add-keys)为状态添加至少一个账户：
+
+```bash
+evmosd keys add my_validator
+```
+
+创建本地账户后，可以在链的创世文件中为其授予一些 `aevmos` 代币。这样做还可以确保您的链知道该账户的存在：
+
+```bash
+evmosd add-genesis-account my_validator 10000000000aevmos
+```
+
+现在，您的账户有了一些代币，您需要向链中添加一个验证器。
+
+在本指南中，您将把本地节点（通过上述 `init` 命令创建）作为链的验证器添加进去。验证器可以在链首次启动之前通过创世文件中的特殊交易（称为 `gentx`）进行声明：
+
+```bash
+# Create a gentx
+# NOTE: this command lets you set the number of coins.
+# Make sure this account has some coins with the genesis.app_state.staking.params.bond_denom denom
+evmosd add-genesis-account my_validator 1000000000stake,10000000000aevmos
+```
+
+`gentx` 执行三个操作：
+
+1. 将您创建的 `validator` 账户注册为验证器操作员账户（即控制验证器的账户）。
+2. 自委托提供的质押代币数量。
+3. 将操作员账户与将用于签署区块的 Tendermint 节点公钥关联起来。如果未提供 `--pubkey` 标志，则默认使用通过上述 `evmosd init` 命令创建的本地节点公钥。
+
+有关 `gentx` 的更多信息，请使用以下命令：
+
+```bash
+evmosd gentx --help
+```
+
+### 收集 `gentx`
+
+默认情况下，创世文件不包含任何 `gentx`。`gentx` 是一种将创世文件中的质押代币（在 `accounts` 下）与验证器绑定的交易，从而在创世时创建一个验证器。在 `genesis_time` 之后，只要超过 2/3 的验证器（按投票权重加权）在线并接收到有效的 `gentx`，链就会启动。
+
+`gentx`可以手动添加到创世文件中，或者通过以下命令添加：
+
+```bash
+# 将gentx添加到创世文件中
+evmosd collect-gentxs
+```
+
+此命令将把存储在`~/.evmosd/config/gentx`中的所有`gentx`添加到创世文件中。
+
+### 运行单个节点
+
+最后，检查`genesis.json`文件的正确性：
+
+```bash
+evmosd validate-genesis
+```
+
+现在，一切都设置好了，您可以开始启动节点了：
+
+```bash
+evmosd start
+```
+
+:::tip
+要查看运行节点时的所有可自定义选项，请使用`--help`标志。
+:::
+
+您应该看到区块开始生成。
+
+前面的命令允许您运行单个节点。这足够进行下一节中与该节点交互的操作，但您可能希望同时运行多个节点，并观察它们之间的共识过程。
+
+您可以使用`Ctrl+C`停止节点。
+
+## 进一步的配置
+
+### 密钥管理
+
+要每次使用相同的密钥运行节点：将`./local_node.sh`中的`evmosd keys add $KEY`替换为：
+
+```bash
+echo "your mnemonic here" | evmosd keys add $KEY --recover
+```
+
+:::tip
+Evmos目前仅支持24个单词的助记词。
+:::
+
+您可以使用以下命令生成新的密钥/助记词：
+
+```bash
+evmosd keys add $KEY
+```
+
+要将Evmos密钥导出为以太坊私钥（用于与[Metamask](./../../../use/connect-your-wallet/metamask)等一起使用）：
+
+```bash
+evmosd keys unsafe-export-eth-key $KEY
+```
+
+有关可用密钥命令的更多信息，请使用`--help`标志
+
+```bash
+evmosd keys -h
+```
+
+### 密钥环后端选项
+
+上述说明包括使用`test`作为`keyring-backend`的命令。这是一个不安全的密钥环，不需要输入密码，不应在生产环境中使用。否则，Evmos支持使用文件或操作系统密钥环后端进行密钥存储。要创建并使用文件存储的密钥而不是默认使用操作系统密钥环，请在任何相关命令中添加`--keyring-backend file`标志，并通过命令行进行密码提示。这也可以保存为CLI配置选项：
+
+```bash
+evmosd config keyring-backend file
+```
+
+:::tip
+有关密钥环及其后端选项的更多信息，请点击[此处](./../concepts/keyring)。
+:::
+
+### 启用跟踪
+
+要在运行节点时启用跟踪，请修改 `local_node.sh` 脚本的最后一行为以下命令，其中：
+
+- `$TRACER` 是要从 EVM 事务执行中收集执行跟踪的 EVM 跟踪器类型（例如 `json|struct|access_list|markdown`）
+- `$TRACESTORE` 是包含 KVStore 跟踪的输出文件（例如 `store.txt`）
+
+```bash
+evmosd start --evm.tracer $TRACER --tracestore $TRACESTORE --pruning=nothing $TRACE --log_level $LOGLEVEL --minimum-gas-prices=0.0001aevmos --json-rpc.api eth,txpool,personal,net,debug,web3
+```
+
+## 清除链上数据
+
+### 重置数据
+
+或者，您可以**重置**区块链数据库，删除节点的地址簿文件，并将 `priv_validator.json` 重置为创世状态。
+
+:::danger
+如果您正在运行一个**验证节点**，请在执行 `evmosd unsafe-reset-all` 时要格外小心。如果您不是在切换 `chain-id`，请不要使用此命令。
+:::
+
+:::danger
+**重要**: 确保每个节点都有一个唯一的 `priv_validator.json`。**不要**将旧节点的 `priv_validator.json` 复制到多个新节点上运行。使用相同的 `priv_validator.json` 运行两个节点将导致您双重签名！
+:::
+
+首先，删除过时的文件并重置数据。
+
+```bash
+rm $HOME/.evmosd/config/addrbook.json $HOME/.evmosd/config/genesis.json
+evmosd tendermint unsafe-reset-all --home $HOME/.evmosd
+```
+
+您的节点现在处于原始状态，同时保留了原始的 `priv_validator.json` 和 `config.toml`。如果您之前设置了任何哨兵节点或全节点，您的节点仍将尝试连接到它们，但如果它们还没有升级，可能会失败。
+
+### 删除数据
+
+<Highlighter pretext="~/." keyword="binary" /> 二进制文件的数据默认应存储在相应位置。要**删除**现有的二进制文件和配置，请运行：
+
+```bash
+rm -rf ~/.evmosd
+```
+
+清除除密钥存储（如果选择了密钥环后端）之外的所有数据，然后您可以重新运行上述完整节点安装命令以重新启动节点。
+
+## 每秒事务数（TPS）记录
+
+为了获得每秒事务数的渐进值，我们使用Prometheus返回这些值。
+Prometheus导出程序运行在地址<http://localhost:8877>，请将以下内容添加到您的[Prometheus安装](https://opencensus.io/codelabs/prometheus/#1)的config.yaml文件中，如下所示
+
+```yaml
+global:
+scrape_interval: 10s
+
+external_labels:
+  monitor: 'evmos'
+
+scrape_configs:
+- job_name: 'evmos'
+
+  scrape_interval: 10s
+
+  static_configs:
+    - targets: ['localhost:8877']
+```
+
+然后像这样运行Prometheus
+
+```shell
+prometheus --config.file=prom_config.yaml
+```
+
+然后访问Prometheus仪表板<http://localhost:9090/>，然后导航到表达式区域并输入以下表达式
+
+```shell
+rate(evmosd_transactions_processed[1m])
+```
+
+这将显示事务处理的速率。
+
+:::tip
+Evmos目前仅支持24个单词的助记词。
+:::
+
+
+
+---
+sidebar_position: 3
+---
+
 # Single Node
 
 Following this page, you can run a single node local network manually or

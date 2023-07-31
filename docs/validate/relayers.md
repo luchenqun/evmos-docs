@@ -1,3 +1,271 @@
+# 运行 IBC 中继器
+
+## 什么是 IBC 中继器？
+
+IBC 中继器是一种软件组件，用于在支持 Inter-Blockchain Communication (IBC) 协议的两个不同区块链网络之间进行通信。IBC 协议是一种用于在不同区块链网络之间安全可靠地传输数字资产和数据的标准。
+
+IBC 中继器负责中继 IBC 数据包，这些数据包用于在两个不同的区块链网络之间发送消息和数据。它从一个链接收数据包，验证其真实性和有效性，然后将其中继到接收链。
+
+## 最低要求
+
+- 8 核 (4 物理核心)，x86_64 架构处理器
+- 32 GB RAM (或等效的交换文件设置)
+- 1 TB+ nVME 驱动器
+
+如果在单个虚拟机上运行多个节点，请[确保增加打开文件限制](https://tecadmin.net/increase-open-files-limit-ubuntu/)。
+
+## 先决条件
+
+在开始之前，请确保在您打算进行中继的同一台机器的后台上运行着一个 Evmos 节点。如果您还没有设置 Evmos 节点，请按照[此指南](./../protocol/evmos-cli/single-node)进行设置。
+
+在本指南中，我们将在 [Evmos (channel-3) 和 Cosmos Hub (channel-292)](https://www.mintscan.io/evmos/relayers) 之间进行中继。
+在设置 Evmos 和 Cosmos 全节点时，请确保在各自链的 `app.toml` 和 `config.toml` 文件中偏移使用的端口（此过程将在下面展示）。
+
+在此示例中，将使用 Evmos 的默认端口，并手动更改 Cosmos Hub 节点的端口。
+
+## Evmos 守护程序设置
+
+首先，在 `$HOME/.evmosd/config` 目录下的 `app.toml` 文件中将 `grpc server` 设置为端口 `9090`：
+
+```bash
+vim $HOME/.evmosd/config/app.toml
+```
+
+```bash
+[grpc]
+
+# Enable defines if the gRPC server should be enabled.
+enable = true
+
+# Address defines the gRPC server address to bind to.
+address = "0.0.0.0:9090"
+```
+
+然后，在 `$HOME/.evmosd/config` 目录下的 `config.toml` 文件中将 `pprof_laddr` 设置为端口 `6060`，`rpc laddr` 设置为端口 `26657`，`prp laddr` 设置为 `26656`：
+
+```bash
+vim $HOME/.evmosd/config/config.toml
+```
+
+```bash
+# pprof监听地址（https://golang.org/pkg/net/http/pprof）
+pprof_laddr = "localhost:6060"
+```
+
+```bash
+[rpc]
+
+# TCP or UNIX socket address for the RPC server to listen on
+laddr = "tcp://127.0.0.1:26657"
+```
+
+```bash
+[p2p]
+
+# Address to listen for incoming connections
+laddr = "tcp://0.0.0.0:26656"
+```
+
+## Cosmos守护进程设置
+
+首先，在`$HOME/.gaiad/config`目录下的`app.toml`文件中将`grpc server`设置为端口`9090`：
+
+```bash
+vim $HOME/.gaiad/config/app.toml
+```
+
+```bash
+[grpc]
+
+# Enable defines if the gRPC server should be enabled.
+enable = true
+
+# Address defines the gRPC server address to bind to.
+address = "0.0.0.0:9092"
+```
+
+然后，在`$HOME/.gaiad/config`目录下的`config.toml`文件中将`pprof_laddr`设置为端口`6062`，`rpc laddr`设置为端口`26757`，`prp laddr`设置为`26756`：
+
+```bash
+vim $HOME/.gaiad/config/app.toml
+```
+
+```bash
+# pprof监听地址（https://golang.org/pkg/net/http/pprof）
+pprof_laddr = "localhost:6062"
+```
+
+```bash
+[rpc]
+
+# TCP or UNIX socket address for the RPC server to listen on
+laddr = "tcp://127.0.0.1:26757"
+```
+
+```bash
+[p2p]
+
+# Address to listen for incoming connections
+laddr = "tcp://0.0.0.0:26756"
+```
+
+## 安装Rust依赖
+
+安装以下Rust依赖：
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+```bash
+source $HOME/.cargo/env
+sudo apt-get install pkg-config libssl-dev
+```
+
+```bash
+sudo apt install librust-openssl-dev build-essential git
+```
+
+## 构建和设置Hermes
+
+创建二进制文件将被放置的目录，克隆hermes源代码库，并使用最新版本进行构建。
+
+```bash
+mkdir -p $HOME/hermes
+git clone https://github.com/informalsystems/ibc-rs.git hermes
+cd hermes
+git checkout v0.12.0
+cargo install ibc-relayer-cli --bin hermes --locked
+```
+
+创建hermes的`config`和`keys`目录，并将`config.toml`复制到config目录：
+
+```bash
+mkdir -p $HOME/.hermes
+mkdir -p $HOME/.hermes/keys
+cp config.toml $HOME/.hermes
+```
+
+检查hermes的版本和配置目录设置：
+
+```bash
+$ hermes version
+INFO ThreadId(01) using default configuration from '/home/relay/.hermes/config.toml'
+hermes 0.12.0
+```
+
+编辑hermes配置（根据上面设置的端口配置使用相应的端口，只添加将要中继的链）：
+
+```bash
+vim $HOME/.hermes/config.toml
+```
+
+```bash
+# In this example, we will set channel-292 on the cosmoshub-4 chain settings and channel-3 on the evmos_9001-2 chain settings:
+[[chains]]
+id = 'cosmoshub-4'
+rpc_addr = 'http://127.0.0.1:26757'
+grpc_addr = 'http://127.0.0.1:9092'
+websocket_addr = 'ws://127.0.0.1:26757/websocket'
+...
+[chains.packet_filter]
+policy = 'allow'
+list = [
+   ['transfer', 'channel-292'], # evmos_9001-2
+]
+
+[[chains]]
+id = 'evmos_9001-2'
+rpc_addr = 'http://127.0.0.1:26657'
+grpc_addr = 'http://127.0.0.1:9090'
+websocket_addr = 'ws://127.0.0.1:26657/websocket'
+...
+address_type = { derivation = 'ethermint', proto_type = { pk_type = '/ethermint.crypto.v1.ethsecp256k1.PubKey' } }
+[chains.packet_filter]
+policy = 'allow'
+list = [
+  ['transfer', 'channel-3'], # cosmoshub-4
+]
+```
+
+将中继器钱包添加到Hermes的密钥环中（位于`$HOME/.hermes/keys`）
+
+最佳实践是在所有网络上使用相同的助记词。不要将中继地址用于其他任何事情，因为这会导致账户序列错误。
+
+```bash
+hermes keys restore cosmoshub-4 -m "24-word mnemonic seed"
+hermes keys restore evmos_9001-2 -m "24-word mnemonic seed"
+```
+
+确保该钱包在EVMOS和ATOM中都有资金，以支付中继所需的费用。
+
+## 最终检查
+
+验证您的Hermes配置文件：
+
+```bash
+$ hermes config validate
+INFO ThreadId(01) using default configuration from '/home/relay/.hermes/config.toml'
+Success: "validation passed successfully"
+```
+
+执行Hermes的`health-check`命令，查看所有连接的节点是否正常运行且同步：
+
+```bash
+$ hermes health-check
+INFO ThreadId(01) using default configuration from '/home/relay/.hermes/config.toml'
+INFO ThreadId(01) telemetry service running, exposing metrics at http://0.0.0.0:3001/metrics
+INFO ThreadId(01) starting REST API server listening at http://127.0.0.1:3000
+INFO ThreadId(01) [cosmoshub-4] chain is healthy
+INFO ThreadId(01) [evmos_9001-2] chain is healthy
+```
+
+当您的节点完全同步后，可以启动Hermes守护进程：
+
+```bash
+hermes start
+```
+
+观察Hermes的输出，以查看成功中继的数据包或任何错误。它将在启动完成后尝试清除任何未接收的数据包。
+
+## 有用的命令
+
+使用以下命令查询Hermes中未接收的数据包和确认（即检查通道是否“清除”）：
+
+```bash
+hermes query packet unreceived-packets cosmoshub-4 transfer channel-292
+hermes query packet unreceived-acks cosmoshub-4 transfer channel-292
+```
+
+```bash
+hermes query packet unreceived-packets evmos_9001-2 transfer channel-3
+hermes query packet unreceived-acks evmos_9001-2 transfer channel-3
+```
+
+使用以下命令查询Hermes中的数据包承诺：
+
+```bash
+hermes query packet commitments cosmoshub-4 transfer channel-292
+hermes query packet commitments evmos_9001-2 transfer channel-3
+```
+
+使用以下命令清除通道（仅适用于Hermes `v0.12.0`及更高版本）：
+
+```bash
+hermes clear packets cosmoshub-4 transfer channel-292
+hermes clear packets evmos_9001-2 transfer channel-3
+```
+
+使用以下命令手动清除未接收的数据包（实验性功能，需要停止Hermes守护进程以防止与账户序列混淆）：
+
+```bash
+hermes tx raw packet-recv evmos_9001-2 cosmoshub-4 transfer channel-292
+hermes tx raw packet-ack evmos_9001-2 cosmoshub-4 transfer channel-292
+hermes tx raw packet-recv cosmoshub-4 evmos_9001-2 transfer channel-3
+hermes tx raw packet-ack cosmoshub-4 evmos_9001-2 transfer channel-3
+```
+
+
 ---
 sidebar_position: 6
 ---

@@ -2,60 +2,109 @@
 sidebar_position: 2
 ---
 
+# 链 ID
+
+import ProjectValue from "@site/src/components/ProjectValue";
+import Highlighter from "@site/src/components/Highlighter";
+
+链 ID 是表示区块链网络的唯一标识符。我们使用它来区分不同的区块链网络，并确保交易和消息发送到正确的网络。Evmos 网络遵循 `identifier_EIP155-version` 格式。
+
+## 官方链 ID
+
+:::tip **注意**：最新的链 ID（即最高版本号）是软件的最新版本和主网。 :::
+
+### 主网
+
+| 名称                                            | 链 ID                                                             | 标识符  | EIP155 号码                        | 版本号                                   | 活跃 |
+| ----------------------------------------------- | ----------------------------------------------------------------- | ------- | ---------------------------------- | ---------------------------------------- | ---- |
+| Evmos <ProjectValue keyword="version_number" /> | <Highlighter pretext="evmos_" keyword="chain_id" postText="-2" /> | `evmos` | <Highlighter keyword="chain_id" /> | <Highlighter keyword="version_number" /> | ✅   |
+| Evmos 1                                         | <Highlighter pretext="evmos_" keyword="chain_id" postText="-1" /> | `evmos` | <Highlighter keyword="chain_id" /> | `1`                                      | 🚫   |
+
+### 测试网
+
+| 名称                    | 链 ID                                                                     | 标识符  | EIP155 号码                                | 版本号                                           | 活跃 |
+| ----------------------- | ------------------------------------------------------------------------- | ------- | ------------------------------------------ | ------------------------------------------------ | ---- |
+| Evmos 公共测试网        | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-4" /> | `evmos` | <Highlighter keyword="testnet_chain_id" /> | <Highlighter keyword="testnet_version_number" /> | ✅   |
+| Evmos 公共测试网        | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-3" /> | `evmos` | <Highlighter keyword="testnet_chain_id" /> | `3`                                              | 🚫   |
+| Olympus Mons 激励测试网 | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-2" /> | `evmos` | <Highlighter keyword="testnet_chain_id" /> | `2`                                              | 🚫   |
+| Arsia Mons 测试网       | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-1" /> | `evmos` | <Highlighter keyword="testnet_chain_id" /> | `1`                                              | 🚫   |
+
+:::tip 您还可以通过参考 [chainlist.org](https://chainlist.org/) 查找 [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) 的 `Chain ID`。 :::
+
+![chainlist.org 网站](/img/chainlist.png)
+
+## 链标识符
+
+每个链都必须有一个唯一的标识符或 `chain-id`。Tendermint 要求每个应用在 [genesis.json 字段](https://docs.tendermint.com/master/spec/core/genesis.html#genesis-fields) 中定义自己的 `chain-id`。然而，为了符合 EIP155 和 Cosmos 链升级的标准，Evmos 兼容链必须实现一个特殊的结构来定义它们的链标识符。
+
+## 结构
+
+Evmos 链标识符包含 3 个主要组成部分：
+
+- **标识符**：未结构化的字符串，定义应用程序的名称。
+- **EIP155 数字**：不可变的 [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) `CHAIN_ID`，定义了重放攻击保护数字。
+- **版本号**：链当前运行的版本号（始终为正数）。每次升级或分叉链时，必须递增此数字，以避免网络或共识错误。
+
+### 格式
+
+在 genesis 中指定 Evmos 兼容链标识符的格式如下：
+
+```bash
+{标识符}_{EIP155}-{版本号}
+```
+
+下表提供了一个示例，其中第二行对应于从第一行升级：
+
+| ChainID        | 标识符 | EIP155 数字 | 版本号 |
+| -------------- | ------ | ----------- | ------ |
+| `evmos_9000-1` | evmos  | 9000        | 1      |
+| `evmos_9000-2` | evmos  | 9000        | 2      |
+| `...`          | ...    | ...         | ...    |
+| `evmos_9000-N` | evmos  | 9000        | N      |
+
+---
+
+## sidebar_position: 2
+
 # Chain ID
 
-import ProjectValue from '@site/src/components/ProjectValue';
-import Highlighter from '@site/src/components/Highlighter';
-
-A chain ID is a unique identifier that represents a blockchain network. We use it to distinguish different blockchain
-networks from each other and to ensure that transactions and messages are sent to the correct network. Evmos network
-follows the format of `identifier_EIP155-version` format.
+A chain ID is a unique identifier that represents a blockchain network. We use it to distinguish different blockchain networks from each other and to ensure that transactions and messages are sent to the correct network. Evmos network follows the format of `identifier_EIP155-version` format.
 
 ## Official Chain IDs
 
-:::tip
-**NOTE**: The latest Chain ID (i.e highest Version Number) is the latest version of the software and mainnet.
-:::
+:::tip **NOTE**: The latest Chain ID (i.e highest Version Number) is the latest version of the software and mainnet. :::
 
 ### Mainnet
 
-| Name                                            | Chain ID                                      | Identifier | EIP155 Number                         | Version Number                              | Active |
-| ----------------------------------------------- | --------------------------------------------- | ---------- | ------------------------------------- | ------------------------------------------- | -------|
-| Evmos <ProjectValue keyword="version_number" /> |  <Highlighter pretext="evmos_" keyword="chain_id" postText="-2" /> | `evmos`    | <Highlighter keyword="chain_id" /> |  <Highlighter keyword="version_number" /> | ✅ |
-| Evmos 1                                         | <Highlighter pretext="evmos_" keyword="chain_id" postText="-1" />  | `evmos`    | <Highlighter keyword="chain_id" /> | `1`                                         | 🚫 |
+| Name                                            | Chain ID                                                          | Identifier | EIP155 Number                      | Version Number                           | Active |
+| ----------------------------------------------- | ----------------------------------------------------------------- | ---------- | ---------------------------------- | ---------------------------------------- | ------ |
+| Evmos <ProjectValue keyword="version_number" /> | <Highlighter pretext="evmos_" keyword="chain_id" postText="-2" /> | `evmos`    | <Highlighter keyword="chain_id" /> | <Highlighter keyword="version_number" /> | ✅     |
+| Evmos 1                                         | <Highlighter pretext="evmos_" keyword="chain_id" postText="-1" /> | `evmos`    | <Highlighter keyword="chain_id" /> | `1`                                      | 🚫     |
 
 ### Testnet
 
-| Name                              | Chain ID                                              | Identifier | EIP155 Number                                 | Version Number                                      | Active |
-| --------------------------------- | ----------------------------------------------------- | ---------- | --------------------------------------------- | --------------------------------------------------- | ------- |
-| Evmos Public Testnet              |  <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-4" /> | `evmos`    |  <Highlighter keyword="testnet_chain_id" /> |  <Highlighter keyword="testnet_version_number" /> | ✅ |
-| Evmos Public Testnet              | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-3" /> | `evmos`    |  <Highlighter keyword="testnet_chain_id" /> | `3`                                                 | 🚫 |
-| Olympus Mons Incentivized Testnet | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-2" /> | `evmos`    |  <Highlighter keyword="testnet_chain_id" /> | `2`                                                 | 🚫 |
-| Arsia Mons Testnet                | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-1" /> | `evmos`    |  <Highlighter keyword="testnet_chain_id" /> | `1`                                                 | 🚫 |
+| Name                              | Chain ID                                                                  | Identifier | EIP155 Number                              | Version Number                                   | Active |
+| --------------------------------- | ------------------------------------------------------------------------- | ---------- | ------------------------------------------ | ------------------------------------------------ | ------ |
+| Evmos Public Testnet              | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-4" /> | `evmos`    | <Highlighter keyword="testnet_chain_id" /> | <Highlighter keyword="testnet_version_number" /> | ✅     |
+| Evmos Public Testnet              | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-3" /> | `evmos`    | <Highlighter keyword="testnet_chain_id" /> | `3`                                              | 🚫     |
+| Olympus Mons Incentivized Testnet | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-2" /> | `evmos`    | <Highlighter keyword="testnet_chain_id" /> | `2`                                              | 🚫     |
+| Arsia Mons Testnet                | <Highlighter pretext="evmos_" keyword="testnet_chain_id" postText="-1" /> | `evmos`    | <Highlighter keyword="testnet_chain_id" /> | `1`                                              | 🚫     |
 
-:::tip
-You can also lookup the [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) `Chain ID` by referring
-to [chainlist.org](https://chainlist.org/).
-:::
+:::tip You can also lookup the [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) `Chain ID` by referring to [chainlist.org](https://chainlist.org/). :::
 
 ![chainlist.org website](/img/chainlist.png)
 
 ## The Chain Identifier
 
-Every chain must have a unique identifier or `chain-id`. Tendermint requires each application to
-define its own `chain-id` in the [genesis.json fields](https://docs.tendermint.com/master/spec/core/genesis.html#genesis-fields).
- However, in order to comply with both EIP155 and Cosmos standard for chain upgrades, Evmos-compatible chains must implement
-  a special structure for their chain identifiers.
+Every chain must have a unique identifier or `chain-id`. Tendermint requires each application to define its own `chain-id` in the [genesis.json fields](https://docs.tendermint.com/master/spec/core/genesis.html#genesis-fields). However, in order to comply with both EIP155 and Cosmos standard for chain upgrades, Evmos-compatible chains must implement a special structure for their chain identifiers.
 
 ## Structure
 
 The Evmos Chain ID contains 3 main components
 
 - **Identifier**: Unstructured string that defines the name of the application.
-- **EIP155 Number**: Immutable [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) `CHAIN_ID` that
- defines the replay attack protection number.
-- **Version Number**: Is the version number (always positive) that the chain is currently running.
-This number **MUST** be incremented every time the chain is upgraded or forked in order to avoid network or consensus errors.
+- **EIP155 Number**: Immutable [EIP155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) `CHAIN_ID` that defines the replay attack protection number.
+- **Version Number**: Is the version number (always positive) that the chain is currently running. This number **MUST** be incremented every time the chain is upgraded or forked in order to avoid network or consensus errors.
 
 ### Format
 

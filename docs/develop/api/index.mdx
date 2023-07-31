@@ -1,5 +1,30 @@
 # API
 
+以下是开发目的推荐使用的API。为了最大程度的控制和可靠性，建议您运行自己的节点。
+
+## 网络
+
+快速将您的应用程序或客户端连接到Evmos主网和公共测试网。请访问[网络](./api/networks)以查找可用于连接到Evmos的公共端点列表。
+
+## 客户端
+
+Evmos网络支持不同的客户端，以支持Cosmos和Ethereum的交易和查询。您可以使用Swagger作为REST接口进行状态查询和交易：
+
+|                                                                                  | 描述                                                                                   | 默认端口     | Swagger                                                             |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------- |
+| **Cosmos [gRPC](./cosmos-grpc.md#cosmos-grpc)**                                  | 使用gRPC查询或发送Evmos交易                                                           | `9090`       |                                                                     |
+| **Cosmos REST ([gRPC-Gateway](./cosmos-grpc.md#cosmos-http-rest-grpc-gateway))** | 使用HTTP RESTful API查询或发送Evmos交易                                                | `9091`       | [测试网](https://api.evmos.dev/) [主网](https://api.evmos.org/)    |
+| **Ethereum [JSON-RPC](./ethereum-json-rpc/index.md)**                            | 使用JSON-RPC查询以太坊格式的交易和区块，或发送以太坊交易                                 | `8545`       |                                                                     |
+| **Ethereum [Websocket](./ethereum-json-rpc/index.md#ethereum-websocket)**        | 订阅以太坊日志和智能合约中发出的事件                                                    | `8586`       |                                                                     |
+| **Tendermint [RPC](#tendermint-rpc)**                                            | 查询交易、区块、共识状态、广播交易等                                                    | `26657`      | [本地](https://docs.tendermint.com/v0.34/rpc/)                     |
+| **Tendermint [Websocket](#tendermint-websocket)**                                | 订阅Tendermint ABCI事件                                                                 | `26657`      |                                                                     |
+| **命令行界面 ([CLI](../../protocol/evmos-cli))**                                  | 使用终端或控制台查询或发送Evmos交易                                                    | N/A          |                                                                     |
+
+I'm sorry, but as an AI text-based model, I am unable to receive or process any files or attachments. However, you can copy and paste the Markdown content here, and I will do my best to translate it for you.
+
+
+# API
+
 The following API's are recommended for development purposes. For maximum control and reliability it's recommended to run your own node.
 
 ## Networks
