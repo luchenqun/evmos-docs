@@ -1,54 +1,49 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const lightCodeTheme = require('prism-react-renderer/themes/github');
-const darkCodeTheme = require('prism-react-renderer/themes/vsDark');
+const lightCodeTheme = require("prism-react-renderer/themes/github");
+const darkCodeTheme = require("prism-react-renderer/themes/vsDark");
 
 function defineSection(section, options = {}) {
   return [
-    '@docusaurus/plugin-content-docs',
+    "@docusaurus/plugin-content-docs",
     /** @type {import('@docusaurus/plugin-content-docs').Options} */
     ({
       path: `docs/${section}`,
       routeBasePath: section,
       id: section,
-      sidebarPath: require.resolve('./sidebars.js'),
+      sidebarPath: require.resolve("./sidebars.js"),
       breadcrumbs: true,
-      editUrl: 'https://github.com/evmos/docs/tree/main/',
+      editUrl: "https://github.com/evmos/docs/tree/main/",
       ...options,
     }),
   ];
 }
 
-const SECTIONS = [
-  defineSection('use'),
-  defineSection('develop'),
-  defineSection('validate'),
-  defineSection('protocol'),
-];
+const SECTIONS = [defineSection("use"), defineSection("develop"), defineSection("validate"), defineSection("protocol"), defineSection("tendermint")];
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Evmos Docs',
-  tagline: 'Develop on Evmos',
-  url: 'https://docs.evmos.org',
-  baseUrl: '/',
-  onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
-  favicon: 'img/favicon.ico',
+  title: "Evmos Docs",
+  tagline: "Develop on Evmos",
+  url: "https://docs.evmos.org",
+  baseUrl: "/",
+  onBrokenLinks: "warn",
+  onBrokenMarkdownLinks: "warn",
+  favicon: "img/favicon.ico",
   trailingSlash: false,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'evmos', // Usually your GitHub org/user name.
-  projectName: 'Docs', // Usually your repo name.
+  organizationName: "evmos", // Usually your GitHub org/user name.
+  projectName: "Docs", // Usually your repo name.
 
   // Even if you don't use internalization, you can use this field to set useful
   // metadata like html lang. For example, if your site is Chinese, you may want
   // to replace "en" with "zh-Hans".
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: "en",
+    locales: ["en"],
   },
 
   customFields: {
@@ -78,13 +73,13 @@ const config = {
 
   presets: [
     [
-      'classic',
+      "classic",
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          path: 'docs/home',
+          path: "docs/home",
           // routeBasePath: '/',
-          sidebarPath: require.resolve('./sidebars.js'),
+          sidebarPath: require.resolve("./sidebars.js"),
           breadcrumbs: true,
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
@@ -93,10 +88,10 @@ const config = {
         },
         blog: false,
         theme: {
-          customCss: require.resolve('./src/css/custom.css'),
+          customCss: require.resolve("./src/css/custom.css"),
         },
         gtag: {
-          trackingID: 'G-3JSJBBPS3L',
+          trackingID: "G-3JSJBBPS3L",
           anonymizeIP: false,
         },
       }),
@@ -105,7 +100,7 @@ const config = {
   plugins: [
     ...SECTIONS,
     [
-      '@docusaurus/plugin-ideal-image',
+      "@docusaurus/plugin-ideal-image",
       {
         quality: 80,
         max: 1030, // max resized image's size.
@@ -131,102 +126,97 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'Evmos Docs',
+        title: "Evmos Docs",
         logo: {
-          href: '/',
-          alt: 'Evmos Logo',
-          src: 'img/evmos.svg',
+          href: "/",
+          alt: "Evmos Logo",
+          src: "img/evmos.svg",
         },
         items: [
           {
-            position: 'left',
-            label: 'Use',
-            to: '/use',
+            position: "left",
+            label: "Use",
+            to: "/use",
           },
           {
-            position: 'left',
-            label: 'Develop',
-            to: '/develop',
+            position: "left",
+            label: "Develop",
+            to: "/develop",
           },
           {
-            position: 'left',
-            label: 'Validate',
-            to: '/validate',
+            position: "left",
+            label: "Validate",
+            to: "/validate",
           },
           {
-            position: 'left',
-            label: 'Protocol',
-            to: '/protocol',
+            position: "left",
+            label: "Protocol",
+            to: "/protocol",
           },
           {
-            position: 'right',
-            label: 'Tools',
-            to: '/develop/tools',
+            position: "left",
+            label: "Tendermint",
+            to: "/tendermint",
           },
           {
-            position: 'right',
-            label: 'Networks',
-            to: '/develop/api/networks',
+            position: "right",
+            label: "Cosmos SDK Docs",
+            to: "http://docscosmos.lucq.fun/",
           },
           {
-            position: 'right',
-            label: 'App',
-            to: 'https://app.evmos.org',
-          },
-          {
-            href: 'https://github.com/evmos/evmos',
-            className: 'pseudo-icon github-icon',
-            position: 'right',
+            href: "https://github.com/evmos/evmos",
+            className: "pseudo-icon github-icon",
+            position: "right",
           },
         ],
       },
       footer: {
-        style: 'dark',
+        style: "dark",
         links: [
           {
-            title: 'Docs',
+            title: "Docs",
             items: [
               {
-                label: 'Build a Dapp',
-                to: '/develop/smart-contracts',
+                label: "Build a Dapp",
+                to: "/develop/smart-contracts",
               },
               {
-                label: 'Contribute to Evmos',
-                to: '/use',
+                label: "Contribute to Evmos",
+                to: "/use",
               },
               {
-                label: 'Become a Validator',
-                to: '/validate',
+                label: "Become a Validator",
+                to: "/validate",
               },
             ],
           },
           {
-            title: 'Community',
+            title: "Community",
             items: [
               {
-                label: 'Telegram',
-                href: 'https://t.me/EvmosOrg',
+                label: "Telegram",
+                href: "https://t.me/EvmosOrg",
               },
               {
-                label: 'Discord',
-                href: 'https://discord.gg/evmos',
+                label: "Discord",
+                href: "https://discord.gg/evmos",
               },
               {
-                label: 'Twitter',
-                href: 'https://twitter.com/EvmosOrg',
+                label: "Twitter",
+                href: "https://twitter.com/EvmosOrg",
               },
             ],
           },
           {
-            title: 'More',
+            title: "More",
             items: [
               {
-                label: 'Blog',
-                to: 'https://medium.com/evmos',
+                label: "Blog",
+                to: "https://medium.com/evmos",
               },
               {
-                label: 'Evmos GitHub',
-                href: 'https://github.com/evmos',
+                label: "Evmos GitHub",
+                href: "https://github.com/evmos",
               },
             ],
           },
@@ -239,31 +229,31 @@ const config = {
       },
       metadata: [
         {
-          name: "Evmos Docs", 
-          content: "Official Evmos Docs. Come discover why we are the the home for native, cross-chain applications."
+          name: "Evmos Docs",
+          content: "Official Evmos Docs. Come discover why we are the the home for native, cross-chain applications.",
         },
         {
           name: "author",
-          content: "The Evmos Core Team @evmosOrg"
+          content: "The Evmos Core Team @evmosOrg",
         },
         {
           name: "keywords",
-          content: "EMM, cross-chain, Cosmos SDK, IBC, fast-finality, native, cross-chain applications, EVM on Cosmos"
+          content: "EMM, cross-chain, Cosmos SDK, IBC, fast-finality, native, cross-chain applications, EVM on Cosmos",
         },
         {
           name: "viewport",
-          content: "width=device-width, initial-scale=1.0"
-        }
+          content: "width=device-width, initial-scale=1.0",
+        },
       ],
       algolia: {
         // The application ID provided by Algolia
-        appId: 'DPTADG0ME1',
-  
+        appId: "DPTADG0ME1",
+
         // Public API key: it is safe to commit it
-        apiKey: 'fbbcf85b58f500e5e4d301f9730f3526',
-  
-        indexName: 'evmosdocs',
-  
+        apiKey: "fbbcf85b58f500e5e4d301f9730f3526",
+
+        indexName: "evmosdocs",
+
         contextualSearch: true,
         searchParameters: {},
       },
